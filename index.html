@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
     <title>Gestor de Transacciones</title>
     <link rel="stylesheet" href="style.css" />
     <!-- SweetAlert2 CSS -->
@@ -10,504 +11,946 @@
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/sweetalert2@11.0.19/dist/sweetalert2.min.css"
     />
+    <!-- Iconos FontAwesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
   </head>
   <body>
-    <h1>Gestor de Transacciones</h1>
-
-    <nav>
-      <button onclick="mostrarModulo('resumen')">Resumen</button>
-      <button onclick="mostrarModulo('transferencias')">Transferencias</button>
-      <button onclick="mostrarModulo('cables')">Cables</button>
-      <button onclick="mostrarModulo('cash_to_cash')">Cash to Cash</button>
-      <button onclick="mostrarModulo('ingreso_pesos')">Ingreso Pesos</button>
-      <button onclick="mostrarModulo('descuento_cheque')">
-        Descuento Cheque
+    <div class="header-container">
+      <h1>Sistema de Gestión</h1>
+      <button class="menu-toggle" aria-label="Menú">
+        <span></span>
+        <span></span>
+        <span></span>
       </button>
-      <button onclick="mostrarModulo('operadores_clientes')">
-        Operadores y Clientes
-      </button>
-    </nav>
+    </div>
+    <div id="overlay"></div>
+    <div class="container">
+      <h1>Gestor de Transacciones</h1>
 
-    <section id="modulos">
-      <div class="modulo" id="resumen">
-        <h2>Resumen de Comisiones</h2>
-        <div class="summary-section">
-          <div class="summary-card">
-            <span class="summary-title">Total USD</span>
-            <span class="summary-value" id="totalUsd">$0.00</span>
-          </div>
-          <div class="summary-card">
-            <span class="summary-title">Total ARS</span>
-            <span class="summary-value" id="totalArs">$0.00</span>
-          </div>
-        </div>
-        <div class="filter-section">
-          <button id="btnHoy" class="filter-btn">Hoy</button>
-          <button id="btnSemana" class="filter-btn">Esta Semana</button>
-          <button id="btnMes" class="filter-btn">Este Mes</button>
-          <button id="btnTodo" class="filter-btn active">Todo</button>
-        </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Tipo</th>
-              <th>Cantidad</th>
-              <th>Comisión USD</th>
-              <th>Comisión ARS</th>
-            </tr>
-          </thead>
-          <tbody id="tablaResumen"></tbody>
-        </table>
-      </div>
+      <nav id="mainNav">
+        <button onclick="mostrarModulo('resumen')">
+          <i class="fas fa-chart-pie"></i> Resumen
+        </button>
+        <button onclick="mostrarModulo('transferencias')">
+          <i class="fas fa-exchange-alt"></i> Transferencias
+        </button>
+        <button onclick="mostrarModulo('cables')">
+          <i class="fas fa-route"></i> Cables
+        </button>
+        <button onclick="mostrarModulo('cash_to_cash')">
+          <i class="fas fa-money-bill-wave"></i> Cash to Cash
+        </button>
+        <button onclick="mostrarModulo('ingreso_pesos')">
+          <i class="fas fa-dollar-sign"></i> Ingreso Pesos
+        </button>
+        <button onclick="mostrarModulo('descuento_cheque')">
+          <i class="fas fa-money-check"></i> Descuento Cheque
+        </button>
+        <button onclick="mostrarModulo('operadores_clientes')">
+          <i class="fas fa-users"></i> Operadores y Clientes
+        </button>
+        <button onclick="mostrarModulo('historial_cambios')">
+          <i class="fas fa-history"></i> Historial
+        </button>
+      </nav>
 
-      <div class="modulo" id="transferencias">
-        <h2>Transferencias</h2>
-        <form id="formTransferencias">
-          <input type="date" id="fechaTrans" required />
-          <select id="operadorTrans" required>
-            <option value="">Seleccione Operador</option>
-          </select>
-          <select id="clienteTrans" required>
-            <option value="">Seleccione Cliente</option>
-          </select>
-          <input
-            type="text"
-            id="destinatarioTrans"
-            placeholder="Destinatario"
-            required
-          />
-          <input
-            type="number"
-            id="montoTrans"
-            placeholder="Monto ARS"
-            step="any"
-            required
-          />
-          <input
-            type="number"
-            id="tcUsdBsAsTrans"
-            placeholder="TC USD BsAs (referencia)"
-            step="any"
-            required
-          />
-          <input
-            type="number"
-            id="tcUsdSaltaTrans"
-            placeholder="TC USD Salta (aplicado)"
-            step="any"
-            required
-          />
-          <input
-            type="number"
-            id="comisionArsTrans"
-            placeholder="Comisión ARS"
-            step="any"
-            required
-          />
-
-          <div class="results-preview">
-            <div class="result-item">
-              <label>DIF TC:</label>
-              <span id="difTcResult">0</span>
+      <section id="modulos">
+        <div class="modulo" id="resumen">
+          <h2>Resumen de Comisiones</h2>
+          <div class="summary-section">
+            <div class="summary-card">
+              <span class="summary-title">Total USD</span>
+              <span class="summary-value" id="totalUsd">$0.00</span>
             </div>
-            <div class="result-item">
-              <label>Monto Neto (ARS):</label>
-              <span id="montoNetoResult">0</span>
-            </div>
-            <div class="result-item">
-              <label>Cambio a USD:</label>
-              <span id="cambioUsdResult">0</span>
+            <div class="summary-card">
+              <span class="summary-title">Total ARS</span>
+              <span class="summary-value" id="totalArs">$0.00</span>
             </div>
           </div>
-
-          <input type="hidden" id="cambioUsdTrans" />
-          <input type="hidden" id="difTcTrans" />
-          <input type="hidden" id="montoNetoTrans" />
-
-          <select id="recepcionadaTrans">
-            <option value="Pendiente">Pendiente</option>
-            <option value="OK">OK</option>
-            <option value="Cancelada">Cancelada</option>
-          </select>
-
-          <input
-            type="text"
-            id="transaccionTrans"
-            placeholder="Número de transacción"
-          />
-          <input type="text" id="comentarioTrans" placeholder="Comentario" />
-          <button type="submit">Guardar</button>
-        </form>
-        <table>
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Cliente</th>
-              <th>Monto ARS</th>
-              <th>Cambio USD</th>
-              <th>TC Aplicado</th>
-              <th>Comisión</th>
-              <th>DIF TC</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="tablaTransferencias"></tbody>
-        </table>
-      </div>
-
-      <div class="modulo" id="cables">
-        <h2>Cables</h2>
-        <form id="formCables">
-          <input type="date" id="fechaCable" required />
-          <select id="clienteCable" required>
-            <option value="">Seleccione Cliente</option>
-          </select>
-          <input
-            type="text"
-            id="transaccionCable"
-            placeholder="Transacción"
-            required
-          />
-          <input
-            type="number"
-            id="montoUsdCable"
-            placeholder="Monto USD"
-            step="any"
-            required
-          />
-          <input
-            type="number"
-            id="comisionPorcCable"
-            placeholder="Comisión %"
-            step="any"
-            required
-          />
-          <input
-            type="number"
-            id="comisionUsdCable"
-            placeholder="Comisión USD"
-            step="any"
-            readonly
-          />
-
-          <div class="results-preview">
-            <div class="result-item">
-              <label>Comisión USD:</label>
-              <span id="comisionUsdResult">0</span>
+          <div class="filter-section">
+            <button id="btnHoy" class="filter-btn">Hoy</button>
+            <button id="btnSemana" class="filter-btn">Esta Semana</button>
+            <button id="btnMes" class="filter-btn">Este Mes</button>
+            <button id="btnTodo" class="filter-btn active">Todo</button>
+            <!-- Botón de exportación -->
+            <div class="export-section">
+              <button id="btnExportarResumen" class="export-btn">
+                <i class="fas fa-file-export"></i> Exportar
+              </button>
+              <div class="export-dropdown">
+                <button onclick="exportarDatos('resumen', 'excel')">
+                  <i class="fas fa-file-excel"></i> Excel
+                </button>
+                <button onclick="exportarDatos('resumen', 'pdf')">
+                  <i class="fas fa-file-pdf"></i> PDF
+                </button>
+              </div>
             </div>
           </div>
-
-          <select id="ingresoCable">
-            <option value="Pendiente">Pendiente</option>
-            <option value="OK">OK</option>
-            <option value="Cancelado">Cancelado</option>
-          </select>
-
-          <button type="submit">Guardar</button>
-        </form>
-        <table>
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Cliente</th>
-              <th>Monto USD</th>
-              <th>Comisión %</th>
-              <th>Comisión USD</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="tablaCables"></tbody>
-        </table>
-      </div>
-
-      <div class="modulo" id="cash_to_cash">
-        <h2>Cash to Cash</h2>
-        <form id="formCash">
-          <input type="date" id="fechaCash" required />
-          <select id="clienteCash" required>
-            <option value="">Seleccione Cliente</option>
-          </select>
-          <input
-            type="text"
-            id="transaccionCash"
-            placeholder="Transacción"
-            required
-          />
-          <input
-            type="number"
-            id="montoUsdCash"
-            placeholder="Monto USD"
-            step="any"
-            required
-          />
-          <input
-            type="number"
-            id="comisionPorcCash"
-            placeholder="Comisión %"
-            step="any"
-            required
-          />
-          <input
-            type="number"
-            id="comisionUsdCash"
-            placeholder="Comisión USD"
-            step="any"
-            readonly
-          />
-
-          <div class="results-preview">
-            <div class="result-item">
-              <label>Comisión USD:</label>
-              <span id="comisionUsdCashResult">0</span>
-            </div>
-          </div>
-
-          <select id="estadoCash">
-            <option value="Pendiente">Pendiente</option>
-            <option value="OK">OK</option>
-            <option value="Cancelado">Cancelado</option>
-          </select>
-
-          <button type="submit">Guardar</button>
-        </form>
-        <table>
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Cliente</th>
-              <th>Monto USD</th>
-              <th>Comisión %</th>
-              <th>Comisión USD</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="tablaCash"></tbody>
-        </table>
-      </div>
-
-      <div class="modulo" id="ingreso_pesos">
-        <h2>Ingreso Pesos</h2>
-        <form id="formIngresoPesos">
-          <input type="date" id="fechaIngreso" required />
-          <select id="clienteIngreso" required>
-            <option value="">Seleccione Cliente</option>
-          </select>
-          <select id="operadorIngreso" required>
-            <option value="">Seleccione Operador</option>
-          </select>
-          <input
-            type="text"
-            id="transaccionIngreso"
-            placeholder="Transacción"
-            required
-          />
-          <input
-            type="number"
-            id="montoArsIngreso"
-            placeholder="Monto ARS"
-            step="any"
-            required
-          />
-          <input
-            type="number"
-            id="comisionPorcIngreso"
-            placeholder="Comisión %"
-            step="any"
-            required
-          />
-          <input
-            type="number"
-            id="comisionArsIngreso"
-            placeholder="Comisión ARS"
-            step="any"
-            readonly
-          />
-
-          <div class="results-preview">
-            <div class="result-item">
-              <label>Comisión ARS:</label>
-              <span id="comisionArsResult">0</span>
-            </div>
-          </div>
-
-          <select id="estadoIngreso">
-            <option value="Pendiente">Pendiente</option>
-            <option value="OK">OK</option>
-            <option value="Cancelado">Cancelado</option>
-          </select>
-
-          <button type="submit">Guardar</button>
-        </form>
-        <table>
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Cliente</th>
-              <th>Operador</th>
-              <th>Monto ARS</th>
-              <th>Comisión %</th>
-              <th>Comisión ARS</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="tablaIngresoPesos"></tbody>
-        </table>
-      </div>
-
-      <!-- Nueva sección para Descuento de Cheques -->
-      <div class="modulo" id="descuento_cheque">
-        <h2>Descuento de Cheques</h2>
-        <form id="formDescuentoCheque">
-          <input type="date" id="fechaCheque" required />
-          <select id="clienteCheque" required>
-            <option value="">Seleccione Cliente</option>
-          </select>
-          <input
-            type="number"
-            id="montoCheque"
-            placeholder="Monto"
-            step="any"
-            required
-          />
-          <input
-            type="number"
-            id="tasaCheque"
-            placeholder="Tasa %"
-            step="any"
-            required
-          />
-          <input type="number" id="diasCheque" placeholder="Días" required />
-          <input
-            type="number"
-            id="comisionCheque"
-            placeholder="Comisión"
-            step="any"
-            required
-          />
-
-          <div class="results-preview">
-            <div class="result-item">
-              <label>Interés:</label>
-              <span id="interesResult">0</span>
-            </div>
-            <div class="result-item">
-              <label>Monto Descontado:</label>
-              <span id="montoDescontadoResult">0</span>
-            </div>
-          </div>
-
-          <input type="hidden" id="interesCheque" />
-          <input type="hidden" id="montoDescontadoCheque" />
-
-          <select id="estadoCheque">
-            <option value="Pendiente">Pendiente</option>
-            <option value="Cobrado">Cobrado</option>
-            <option value="Rechazado">Rechazado</option>
-          </select>
-
-          <input
-            type="text"
-            id="observacionesCheque"
-            placeholder="Observaciones"
-          />
-
-          <button type="submit">Guardar</button>
-        </form>
-        <table>
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Cliente</th>
-              <th>Monto</th>
-              <th>Tasa %</th>
-              <th>Días</th>
-              <th>Interés</th>
-              <th>Monto Descontado</th>
-              <th>Estado</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="tablaDescuentoCheque"></tbody>
-        </table>
-      </div>
-
-      <!-- Nuevo módulo para operadores y clientes -->
-      <div class="modulo" id="operadores_clientes">
-        <h2>Gestión de Operadores y Clientes</h2>
-
-        <div class="tabs">
-          <button class="tab-btn active" onclick="mostrarTab('operadoresTab')">
-            Operadores
-          </button>
-          <button class="tab-btn" onclick="mostrarTab('clientesTab')">
-            Clientes
-          </button>
+          <table>
+            <thead>
+              <tr>
+                <th>Tipo</th>
+                <th>Cantidad</th>
+                <th>Comisión USD</th>
+                <th>Comisión ARS</th>
+              </tr>
+            </thead>
+            <tbody id="tablaResumen"></tbody>
+          </table>
         </div>
 
-        <div id="operadoresTab" class="tab-content active">
-          <h3>Operadores</h3>
-          <form id="formOperadores">
-            <input
-              type="text"
-              id="nombreOperador"
-              placeholder="Nombre"
-              required
-            />
-            <input type="text" id="telefonoOperador" placeholder="Teléfono" />
-            <input type="email" id="emailOperador" placeholder="Email" />
-            <input type="text" id="notasOperador" placeholder="Notas" />
-            <button type="submit">Guardar Operador</button>
+        <div class="modulo" id="transferencias">
+          <h2>Transferencias</h2>
+          <form id="formTransferencias">
+            <div class="form-group">
+              <label for="fechaTrans">Fecha</label>
+              <input type="date" id="fechaTrans" required />
+            </div>
+            <div class="form-group">
+              <label for="operadorTrans">Operador</label>
+              <select id="operadorTrans" required>
+                <option value="">Seleccione Operador</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="clienteTrans">Cliente</label>
+              <select id="clienteTrans" required>
+                <option value="">Seleccione Cliente</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="destinatarioTrans">Destinatario</label>
+              <input
+                type="text"
+                id="destinatarioTrans"
+                placeholder="Destinatario"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="montoTrans">Monto ARS</label>
+              <input
+                type="number"
+                id="montoTrans"
+                placeholder="Monto ARS"
+                step="any"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="tcUsdBsAsTrans">TC USD BsAs</label>
+              <input
+                type="number"
+                id="tcUsdBsAsTrans"
+                placeholder="TC USD BsAs (referencia)"
+                step="any"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="tcUsdSaltaTrans">TC USD Salta</label>
+              <input
+                type="number"
+                id="tcUsdSaltaTrans"
+                placeholder="TC USD Salta (aplicado)"
+                step="any"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="comisionArsTrans">Comisión ARS</label>
+              <input
+                type="number"
+                id="comisionArsTrans"
+                placeholder="Comisión ARS"
+                step="any"
+                required
+              />
+            </div>
+
+            <div class="results-preview">
+              <div class="result-item">
+                <label>DIF TC:</label>
+                <span id="difTcResult">0</span>
+              </div>
+              <div class="result-item">
+                <label>Monto Neto (ARS):</label>
+                <span id="montoNetoResult">0</span>
+              </div>
+              <div class="result-item">
+                <label>Cambio a USD:</label>
+                <span id="cambioUsdResult">0</span>
+              </div>
+            </div>
+
+            <input type="hidden" id="cambioUsdTrans" />
+            <input type="hidden" id="difTcTrans" />
+            <input type="hidden" id="montoNetoTrans" />
+
+            <div class="form-group">
+              <label for="recepcionadaTrans">Estado</label>
+              <select id="recepcionadaTrans">
+                <option value="Pendiente">Pendiente</option>
+                <option value="OK">OK</option>
+                <option value="Cancelada">Cancelada</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="transaccionTrans">Número de transacción</label>
+              <input
+                type="text"
+                id="transaccionTrans"
+                placeholder="Número de transacción"
+              />
+            </div>
+            <div class="form-group">
+              <label for="comentarioTrans">Comentario</label>
+              <input
+                type="text"
+                id="comentarioTrans"
+                placeholder="Comentario"
+              />
+            </div>
+            <div class="form-group form-buttons">
+              <button type="submit" class="btn-primary">
+                <i class="fas fa-save"></i> Guardar
+              </button>
+            </div>
+          </form>
+
+          <!-- Controles de tabla con exportación y paginación -->
+          <div class="table-controls">
+            <div class="export-section">
+              <button id="btnExportarTransferencias" class="export-btn">
+                <i class="fas fa-file-export"></i> Exportar
+              </button>
+              <div class="export-dropdown">
+                <button onclick="exportarDatos('transferencias', 'excel')">
+                  <i class="fas fa-file-excel"></i> Excel
+                </button>
+                <button onclick="exportarDatos('transferencias', 'pdf')">
+                  <i class="fas fa-file-pdf"></i> PDF
+                </button>
+              </div>
+            </div>
+
+            <div class="pagination-controls">
+              <span>Registros por página:</span>
+              <select
+                id="pageSizeTransferencias"
+                onchange="cambiarRegistrosPorPagina('transferencias', this.value)"
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Monto ARS</th>
+                <th>Cambio USD</th>
+                <th>TC Aplicado</th>
+                <th>Comisión</th>
+                <th>DIF TC</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tablaTransferencias"></tbody>
+          </table>
+
+          <!-- Controles de paginación -->
+          <div class="pagination">
+            <button
+              id="btnAnteriorTransferencias"
+              onclick="paginaAnterior('transferencias')"
+              disabled
+            >
+              <i class="fas fa-chevron-left"></i> Anterior
+            </button>
+            <span id="paginaActualTransferencias">Página 1</span>
+            <button
+              id="btnSiguienteTransferencias"
+              onclick="paginaSiguiente('transferencias')"
+            >
+              Siguiente <i class="fas fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="modulo" id="cables">
+          <h2>Cables</h2>
+          <form id="formCables">
+            <div class="form-group">
+              <label for="fechaCable">Fecha</label>
+              <input type="date" id="fechaCable" required />
+            </div>
+            <div class="form-group">
+              <label for="clienteCable">Cliente</label>
+              <select id="clienteCable" required>
+                <option value="">Seleccione Cliente</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="transaccionCable">Transacción</label>
+              <input
+                type="text"
+                id="transaccionCable"
+                placeholder="Transacción"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="montoUsdCable">Monto USD</label>
+              <input
+                type="number"
+                id="montoUsdCable"
+                placeholder="Monto USD"
+                step="any"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="comisionPorcCable">Comisión %</label>
+              <input
+                type="number"
+                id="comisionPorcCable"
+                placeholder="Comisión %"
+                step="any"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="comisionUsdCable">Comisión USD</label>
+              <input
+                type="number"
+                id="comisionUsdCable"
+                placeholder="Comisión USD"
+                step="any"
+                readonly
+              />
+            </div>
+
+            <div class="results-preview">
+              <div class="result-item">
+                <label>Comisión USD:</label>
+                <span id="comisionUsdResult">0</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="ingresoCable">Estado</label>
+              <select id="ingresoCable">
+                <option value="Pendiente">Pendiente</option>
+                <option value="OK">OK</option>
+                <option value="Cancelado">Cancelado</option>
+              </select>
+            </div>
+
+            <div class="form-group form-buttons">
+              <button type="submit" class="btn-primary">
+                <i class="fas fa-save"></i> Guardar
+              </button>
+            </div>
+          </form>
+
+          <!-- Controles de tabla con exportación y paginación -->
+          <div class="table-controls">
+            <div class="export-section">
+              <button id="btnExportarCables" class="export-btn">
+                <i class="fas fa-file-export"></i> Exportar
+              </button>
+              <div class="export-dropdown">
+                <button onclick="exportarDatos('cables', 'excel')">
+                  <i class="fas fa-file-excel"></i> Excel
+                </button>
+                <button onclick="exportarDatos('cables', 'pdf')">
+                  <i class="fas fa-file-pdf"></i> PDF
+                </button>
+              </div>
+            </div>
+
+            <div class="pagination-controls">
+              <span>Registros por página:</span>
+              <select
+                id="pageSizeCables"
+                onchange="cambiarRegistrosPorPagina('cables', this.value)"
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Monto USD</th>
+                <th>Comisión %</th>
+                <th>Comisión USD</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tablaCables"></tbody>
+          </table>
+
+          <!-- Controles de paginación -->
+          <div class="pagination">
+            <button
+              id="btnAnteriorCables"
+              onclick="paginaAnterior('cables')"
+              disabled
+            >
+              <i class="fas fa-chevron-left"></i> Anterior
+            </button>
+            <span id="paginaActualCables">Página 1</span>
+            <button id="btnSiguienteCables" onclick="paginaSiguiente('cables')">
+              Siguiente <i class="fas fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="modulo" id="cash_to_cash">
+          <h2>Cash to Cash</h2>
+          <form id="formCash">
+            <div class="form-group">
+              <label for="fechaCash">Fecha</label>
+              <input type="date" id="fechaCash" required />
+            </div>
+            <div class="form-group">
+              <label for="clienteCash">Cliente</label>
+              <select id="clienteCash" required>
+                <option value="">Seleccione Cliente</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="transaccionCash">Transacción</label>
+              <input
+                type="text"
+                id="transaccionCash"
+                placeholder="Transacción"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="montoUsdCash">Monto USD</label>
+              <input
+                type="number"
+                id="montoUsdCash"
+                placeholder="Monto USD"
+                step="any"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="comisionPorcCash">Comisión %</label>
+              <input
+                type="number"
+                id="comisionPorcCash"
+                placeholder="Comisión %"
+                step="any"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="comisionUsdCash">Comisión USD</label>
+              <input
+                type="number"
+                id="comisionUsdCash"
+                placeholder="Comisión USD"
+                step="any"
+                readonly
+              />
+            </div>
+
+            <div class="results-preview">
+              <div class="result-item">
+                <label>Comisión USD:</label>
+                <span id="comisionUsdCashResult">0</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="estadoCash">Estado</label>
+              <select id="estadoCash">
+                <option value="Pendiente">Pendiente</option>
+                <option value="OK">OK</option>
+                <option value="Cancelado">Cancelado</option>
+              </select>
+            </div>
+
+            <div class="form-group form-buttons">
+              <button type="submit" class="btn-primary">
+                <i class="fas fa-save"></i> Guardar
+              </button>
+            </div>
           </form>
           <table>
             <thead>
               <tr>
-                <th>Nombre</th>
-                <th>Teléfono</th>
-                <th>Email</th>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Monto USD</th>
+                <th>Comisión %</th>
+                <th>Comisión USD</th>
+                <th>Estado</th>
                 <th>Acciones</th>
               </tr>
             </thead>
-            <tbody id="tablaOperadores"></tbody>
+            <tbody id="tablaCash"></tbody>
           </table>
         </div>
 
-        <div id="clientesTab" class="tab-content">
-          <h3>Clientes</h3>
-          <form id="formClientes">
-            <input
-              type="text"
-              id="nombreCliente"
-              placeholder="Nombre"
-              required
-            />
-            <input type="text" id="telefonoCliente" placeholder="Teléfono" />
-            <input type="email" id="emailCliente" placeholder="Email" />
-            <input type="text" id="direccionCliente" placeholder="Dirección" />
-            <input type="text" id="notasCliente" placeholder="Notas" />
-            <button type="submit">Guardar Cliente</button>
+        <div class="modulo" id="ingreso_pesos">
+          <h2>Ingreso Pesos</h2>
+          <form id="formIngresoPesos">
+            <div class="form-group">
+              <label for="fechaIngreso">Fecha</label>
+              <input type="date" id="fechaIngreso" required />
+            </div>
+            <div class="form-group">
+              <label for="clienteIngreso">Cliente</label>
+              <select id="clienteIngreso" required>
+                <option value="">Seleccione Cliente</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="operadorIngreso">Operador</label>
+              <select id="operadorIngreso" required>
+                <option value="">Seleccione Operador</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="transaccionIngreso">Transacción</label>
+              <input
+                type="text"
+                id="transaccionIngreso"
+                placeholder="Transacción"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="montoArsIngreso">Monto ARS</label>
+              <input
+                type="number"
+                id="montoArsIngreso"
+                placeholder="Monto ARS"
+                step="any"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="comisionPorcIngreso">Comisión %</label>
+              <input
+                type="number"
+                id="comisionPorcIngreso"
+                placeholder="Comisión %"
+                step="any"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="comisionArsIngreso">Comisión ARS</label>
+              <input
+                type="number"
+                id="comisionArsIngreso"
+                placeholder="Comisión ARS"
+                step="any"
+                readonly
+              />
+            </div>
+
+            <div class="results-preview">
+              <div class="result-item">
+                <label>Comisión ARS:</label>
+                <span id="comisionArsResult">0</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="estadoIngreso">Estado</label>
+              <select id="estadoIngreso">
+                <option value="Pendiente">Pendiente</option>
+                <option value="OK">OK</option>
+                <option value="Cancelado">Cancelado</option>
+              </select>
+            </div>
+
+            <div class="form-group form-buttons">
+              <button type="submit" class="btn-primary">
+                <i class="fas fa-save"></i> Guardar
+              </button>
+            </div>
           </form>
           <table>
             <thead>
               <tr>
-                <th>Nombre</th>
-                <th>Teléfono</th>
-                <th>Email</th>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Operador</th>
+                <th>Monto ARS</th>
+                <th>Comisión %</th>
+                <th>Comisión ARS</th>
+                <th>Estado</th>
                 <th>Acciones</th>
               </tr>
             </thead>
-            <tbody id="tablaClientes"></tbody>
+            <tbody id="tablaIngresoPesos"></tbody>
           </table>
         </div>
-      </div>
-    </section>
+
+        <!-- Nueva sección para Descuento de Cheques -->
+        <div class="modulo" id="descuento_cheque">
+          <h2>Descuento de Cheques</h2>
+          <form id="formDescuentoCheque">
+            <div class="form-group">
+              <label for="fechaCheque">Fecha</label>
+              <input type="date" id="fechaCheque" required />
+            </div>
+            <div class="form-group">
+              <label for="clienteCheque">Cliente</label>
+              <select id="clienteCheque" required>
+                <option value="">Seleccione Cliente</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="montoCheque">Monto</label>
+              <input
+                type="number"
+                id="montoCheque"
+                placeholder="Monto"
+                step="any"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="tasaCheque">Tasa %</label>
+              <input
+                type="number"
+                id="tasaCheque"
+                placeholder="Tasa %"
+                step="any"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="diasCheque">Días</label>
+              <input
+                type="number"
+                id="diasCheque"
+                placeholder="Días"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="comisionCheque">Comisión</label>
+              <input
+                type="number"
+                id="comisionCheque"
+                placeholder="Comisión"
+                step="any"
+                required
+              />
+            </div>
+
+            <div class="results-preview">
+              <div class="result-item">
+                <label>Interés:</label>
+                <span id="interesResult">0</span>
+              </div>
+              <div class="result-item">
+                <label>Monto Descontado:</label>
+                <span id="montoDescontadoResult">0</span>
+              </div>
+            </div>
+
+            <input type="hidden" id="interesCheque" />
+            <input type="hidden" id="montoDescontadoCheque" />
+
+            <div class="form-group">
+              <label for="estadoCheque">Estado</label>
+              <select id="estadoCheque">
+                <option value="Pendiente">Pendiente</option>
+                <option value="Cobrado">Cobrado</option>
+                <option value="Rechazado">Rechazado</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="observacionesCheque">Observaciones</label>
+              <input
+                type="text"
+                id="observacionesCheque"
+                placeholder="Observaciones"
+              />
+            </div>
+
+            <div class="form-group form-buttons">
+              <button type="submit" class="btn-primary">
+                <i class="fas fa-save"></i> Guardar
+              </button>
+            </div>
+          </form>
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th>Monto</th>
+                <th>Tasa %</th>
+                <th>Días</th>
+                <th>Interés</th>
+                <th>Monto Descontado</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="tablaDescuentoCheque"></tbody>
+          </table>
+        </div>
+
+        <!-- Nuevo módulo para operadores y clientes -->
+        <div class="modulo" id="operadores_clientes">
+          <h2>Gestión de Operadores y Clientes</h2>
+
+          <div class="tabs">
+            <button
+              class="tab-btn active"
+              onclick="mostrarTab('operadoresTab')"
+            >
+              Operadores
+            </button>
+            <button class="tab-btn" onclick="mostrarTab('clientesTab')">
+              Clientes
+            </button>
+          </div>
+
+          <div id="operadoresTab" class="tab-content active">
+            <h3>Operadores</h3>
+            <form id="formOperadores">
+              <div class="form-group">
+                <label for="nombreOperador">Nombre</label>
+                <input
+                  type="text"
+                  id="nombreOperador"
+                  placeholder="Nombre"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label for="telefonoOperador">Teléfono</label>
+                <input
+                  type="text"
+                  id="telefonoOperador"
+                  placeholder="Teléfono"
+                />
+              </div>
+              <div class="form-group">
+                <label for="emailOperador">Email</label>
+                <input type="email" id="emailOperador" placeholder="Email" />
+              </div>
+              <div class="form-group">
+                <label for="notasOperador">Notas</label>
+                <input type="text" id="notasOperador" placeholder="Notas" />
+              </div>
+              <div class="form-group form-buttons">
+                <button type="submit" class="btn-primary">
+                  <i class="fas fa-save"></i> Guardar Operador
+                </button>
+              </div>
+            </form>
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Teléfono</th>
+                  <th>Email</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tablaOperadores"></tbody>
+            </table>
+          </div>
+
+          <div id="clientesTab" class="tab-content">
+            <h3>Clientes</h3>
+            <form id="formClientes">
+              <div class="form-group">
+                <label for="nombreCliente">Nombre</label>
+                <input
+                  type="text"
+                  id="nombreCliente"
+                  placeholder="Nombre"
+                  required
+                />
+              </div>
+              <div class="form-group">
+                <label for="telefonoCliente">Teléfono</label>
+                <input
+                  type="text"
+                  id="telefonoCliente"
+                  placeholder="Teléfono"
+                />
+              </div>
+              <div class="form-group">
+                <label for="emailCliente">Email</label>
+                <input type="email" id="emailCliente" placeholder="Email" />
+              </div>
+              <div class="form-group">
+                <label for="direccionCliente">Dirección</label>
+                <input
+                  type="text"
+                  id="direccionCliente"
+                  placeholder="Dirección"
+                />
+              </div>
+              <div class="form-group">
+                <label for="notasCliente">Notas</label>
+                <input type="text" id="notasCliente" placeholder="Notas" />
+              </div>
+              <div class="form-group form-buttons">
+                <button type="submit" class="btn-primary">
+                  <i class="fas fa-save"></i> Guardar Cliente
+                </button>
+              </div>
+            </form>
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Teléfono</th>
+                  <th>Email</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tablaClientes"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Nuevo módulo para historial de cambios -->
+        <div class="modulo" id="historial_cambios">
+          <h2>Historial de Cambios</h2>
+
+          <div class="filter-section">
+            <div class="form-group">
+              <label for="fechaDesdeHistorial">Desde</label>
+              <input type="date" id="fechaDesdeHistorial" />
+            </div>
+            <div class="form-group">
+              <label for="fechaHastaHistorial">Hasta</label>
+              <input type="date" id="fechaHastaHistorial" />
+            </div>
+
+            <div class="form-group">
+              <label for="tipoRegistroHistorial">Tipo de registro</label>
+              <select id="tipoRegistroHistorial">
+                <option value="todos">Todos los registros</option>
+                <option value="transferencias">Transferencias</option>
+                <option value="cables">Cables</option>
+                <option value="cash_to_cash">Cash to Cash</option>
+                <option value="ingreso_pesos">Ingreso Pesos</option>
+                <option value="descuento_cheque">Descuento Cheque</option>
+                <option value="operadores">Operadores</option>
+                <option value="clientes">Clientes</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="tipoAccionHistorial">Tipo de acción</label>
+              <select id="tipoAccionHistorial">
+                <option value="todos">Todas las acciones</option>
+                <option value="crear">Creaciones</option>
+                <option value="editar">Modificaciones</option>
+                <option value="eliminar">Eliminaciones</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <button id="btnFiltrarHistorial" class="btn-primary">
+                <i class="fas fa-filter"></i> Filtrar
+              </button>
+            </div>
+
+            <div class="export-section">
+              <button id="btnExportarHistorial" class="export-btn">
+                <i class="fas fa-file-export"></i> Exportar
+              </button>
+              <div class="export-dropdown">
+                <button onclick="exportarDatos('historial', 'excel')">
+                  <i class="fas fa-file-excel"></i> Excel
+                </button>
+                <button onclick="exportarDatos('historial', 'pdf')">
+                  <i class="fas fa-file-pdf"></i> PDF
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Usuario</th>
+                <th>Tipo de Registro</th>
+                <th>Acción</th>
+                <th>ID Registro</th>
+                <th>Detalles</th>
+              </tr>
+            </thead>
+            <tbody id="tablaHistorial"></tbody>
+          </table>
+
+          <!-- Controles de paginación -->
+          <div class="pagination">
+            <button
+              id="btnAnteriorHistorial"
+              onclick="paginaAnterior('historial')"
+              disabled
+            >
+              <i class="fas fa-chevron-left"></i> Anterior
+            </button>
+            <span id="paginaActualHistorial">Página 1</span>
+            <button
+              id="btnSiguienteHistorial"
+              onclick="paginaSiguiente('historial')"
+            >
+              Siguiente <i class="fas fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Spinner de carga -->
+    <div class="loader" id="loader">
+      <div class="spinner"></div>
+    </div>
 
     <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+
+    <!-- Librerías para exportación -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
 
     <!-- SweetAlert2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.0.19/dist/sweetalert2.all.min.js"></script>
@@ -515,5 +958,50 @@
     <!-- App Scripts -->
     <script src="firebase-config.js"></script>
     <script src="app.js"></script>
+
+    <!-- Script para el menú móvil -->
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // Elementos del menú
+        const menuToggle = document.querySelector(".menu-toggle");
+        const mainNav = document.getElementById("mainNav");
+        const overlay = document.getElementById("overlay");
+        const navButtons = mainNav.querySelectorAll("button");
+
+        // Función para abrir/cerrar el menú
+        menuToggle.addEventListener("click", function () {
+          mainNav.classList.toggle("active");
+          overlay.classList.toggle("active");
+          menuToggle.classList.toggle("active");
+        });
+
+        // Cerrar el menú cuando se hace clic en el overlay
+        overlay.addEventListener("click", function () {
+          mainNav.classList.remove("active");
+          overlay.classList.remove("active");
+          menuToggle.classList.remove("active");
+        });
+
+        // Cerrar el menú al hacer clic en un botón de navegación (en móviles)
+        navButtons.forEach((button) => {
+          button.addEventListener("click", function () {
+            if (window.innerWidth <= 768) {
+              mainNav.classList.remove("active");
+              overlay.classList.remove("active");
+              menuToggle.classList.remove("active");
+            }
+          });
+        });
+
+        // Ajustar menú al cambiar el tamaño de la ventana
+        window.addEventListener("resize", function () {
+          if (window.innerWidth > 768) {
+            mainNav.classList.remove("active");
+            overlay.classList.remove("active");
+            menuToggle.classList.remove("active");
+          }
+        });
+      });
+    </script>
   </body>
 </html>

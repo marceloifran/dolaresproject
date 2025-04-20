@@ -76,6 +76,44 @@ window.addEventListener("DOMContentLoaded", () => {
   // Inicializar formularios de operadores y clientes
   inicializarFormularioOperadores();
   inicializarFormularioClientes();
+
+  // Inicializar historial
+  document
+    .getElementById("btnFiltrarHistorial")
+    ?.addEventListener("click", () => {
+      const filtros = {
+        fechaDesde: document.getElementById("fechaDesdeHistorial").value,
+        fechaHasta: document.getElementById("fechaHastaHistorial").value,
+        tipoRegistro: document.getElementById("tipoRegistroHistorial").value,
+        tipoAccion: document.getElementById("tipoAccionHistorial").value,
+      };
+
+      cargarHistorial(filtros);
+    });
+
+  // Inicializar dropdown de exportación
+  document.querySelectorAll(".export-btn").forEach((btn) => {
+    btn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      const dropdown = this.nextElementSibling;
+
+      // Cerrar todos los dropdowns
+      document.querySelectorAll(".export-dropdown").forEach((d) => {
+        if (d !== dropdown) d.style.display = "none";
+      });
+
+      // Alternar el dropdown actual
+      dropdown.style.display =
+        dropdown.style.display === "block" ? "none" : "block";
+    });
+  });
+
+  // Cerrar dropdowns al hacer clic en cualquier parte
+  document.addEventListener("click", function () {
+    document.querySelectorAll(".export-dropdown").forEach((d) => {
+      d.style.display = "none";
+    });
+  });
 });
 
 // ================== OPERADORES ==================
@@ -128,7 +166,7 @@ async function cargarOperadores() {
     snap.forEach((doc) => {
       const d = doc.data();
       tbody.innerHTML += `
-        <tr>
+      <tr>
           <td>${d.nombre}</td>
           <td>${d.telefono || "-"}</td>
           <td>${d.email || "-"}</td>
@@ -140,7 +178,7 @@ async function cargarOperadores() {
               doc.id
             }', function() { cargarOperadores(); cargarListasOperadoresClientes(); })">Eliminar</button>
           </td>
-        </tr>`;
+      </tr>`;
     });
   } catch (error) {
     console.error("Error al cargar operadores:", error);
@@ -768,27 +806,33 @@ formTransferencias.onsubmit = async (e) => {
     const montoNeto = monto - comision;
     const cambioUsd = montoNeto / tcSalta;
 
-    // Guardar en la base de datos
-    await db.collection("transferencias").add({
+    // Crear objeto con los datos
+    const datosTrans = {
       fecha: getVal("fechaTrans"),
       operador: getVal("operadorTrans"),
       cliente: getVal("clienteTrans"),
       destinatario: getVal("destinatarioTrans"),
-      transaccion: getVal("transaccionTrans") || "",
+      monto: monto,
       tc_usd_bsas: tcBsAs,
       tc_usd_salta: tcSalta,
-      monto: monto,
-      comision_ars: comision,
-      monto_neto: montoNeto,
-      dif_tc: difTc,
+      comision: comision,
       cambio_usd: cambioUsd,
+      dif_tc: difTc,
+      monto_neto: montoNeto,
       recepcionada: getVal("recepcionadaTrans"),
+      transaccion: getVal("transaccionTrans") || "",
       comentario: getVal("comentarioTrans") || "",
       timestamp: new Date(),
-    });
+    };
+
+    // Guardar en Firestore
+    const docRef = await db.collection("transferencias").add(datosTrans);
+
+    // Registrar en historial
+    await registrarHistorial("transferencias", "crear", docRef.id, datosTrans);
 
     clearForm("formTransferencias");
-    setupTransferenciasCalculos(); // Reiniciar cálculos
+    setupTransferenciasCalculos();
     cargarTransferencias();
 
     Swal.fire({
@@ -809,44 +853,34 @@ formTransferencias.onsubmit = async (e) => {
 async function cargarTransferencias() {
   const tbody = document.getElementById("tablaTransferencias");
   tbody.innerHTML = "";
+
   try {
+    document.getElementById("loader").classList.add("active");
+
     const snap = await db
       .collection("transferencias")
       .orderBy("timestamp", "desc")
       .get();
+
     if (snap.empty) {
       tbody.innerHTML =
-        '<tr><td colspan="9" style="text-align: center;">No hay registros</td></tr>';
+        '<tr><td colspan="9" style="text-align: center;">No hay transferencias registradas</td></tr>';
+      document.getElementById("loader").classList.remove("active");
       return;
     }
 
-    snap.forEach((doc) => {
-      const d = doc.data();
-      const fecha = d.fecha
-        ? new Date(d.fecha).toLocaleDateString("es-AR")
-        : "-";
-      tbody.innerHTML += `
-      <tr>
-        <td>${fecha}</td>
-        <td>${d.cliente}</td>
-        <td>$${d.monto.toLocaleString("es-AR")}</td>
-        <td>$${d.cambio_usd.toFixed(2)}</td>
-        <td>${d.tc_usd_salta.toLocaleString("es-AR")}</td>
-        <td>$${d.comision_ars.toLocaleString("es-AR")}</td>
-        <td>${d.dif_tc.toFixed(2)}</td>
-        <td><span class="estado-${d.recepcionada.toLowerCase()}">${
-        d.recepcionada
-      }</span></td>
-        <td>
-          <button class="btn-editar" onclick="verDetallesTransferencia('${
-            doc.id
-          }')">Ver</button>
-          <button onclick="eliminarRegistro('transferencias', '${
-            doc.id
-          }', cargarTransferencias)">Eliminar</button>
-        </td>
-      </tr>`;
-    });
+    // Almacenar todos los datos para paginación y exportación
+    datosCompletos.transferencias = snap.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Actualizar estado de paginación
+    estadoPaginacion.transferencias.total =
+      datosCompletos.transferencias.length;
+
+    // Renderizar la primera página
+    actualizarTablaPaginada("transferencias");
   } catch (error) {
     console.error("Error al cargar transferencias:", error);
     Swal.fire({
@@ -854,54 +888,47 @@ async function cargarTransferencias() {
       title: "Error",
       text: "Error al cargar los datos: " + error.message,
     });
+    document.getElementById("loader").classList.remove("active");
   }
 }
 
-// Función para ver detalles de transferencia
-async function verDetallesTransferencia(id) {
-  try {
-    const doc = await db.collection("transferencias").doc(id).get();
-    if (!doc.exists) {
-      Swal.fire("Error", "Transferencia no encontrada", "error");
-      return;
-    }
+// Función específica para renderizar tabla de transferencias (para paginación)
+function renderizarTablaTransferencias(datos) {
+  const tbody = document.getElementById("tablaTransferencias");
+  tbody.innerHTML = "";
 
-    const t = doc.data();
-    const fecha = t.fecha ? new Date(t.fecha).toLocaleDateString("es-AR") : "-";
-
-    Swal.fire({
-      title: `Transferencia - ${t.cliente}`,
-      html: `
-        <div style="text-align: left; margin: 15px 0;">
-          <p><strong>Fecha:</strong> ${fecha}</p>
-          <p><strong>Operador:</strong> ${t.operador}</p>
-          <p><strong>Destinatario:</strong> ${t.destinatario}</p>
-          <p><strong>Monto ARS:</strong> $${t.monto.toLocaleString("es-AR")}</p>
-          <p><strong>Comisión ARS:</strong> $${t.comision_ars.toLocaleString(
-            "es-AR"
-          )}</p>
-          <p><strong>Monto Neto ARS:</strong> $${t.monto_neto.toLocaleString(
-            "es-AR"
-          )}</p>
-          <p><strong>TC USD BsAs:</strong> ${t.tc_usd_bsas.toLocaleString(
-            "es-AR"
-          )}</p>
-          <p><strong>TC USD Salta:</strong> ${t.tc_usd_salta.toLocaleString(
-            "es-AR"
-          )}</p>
-          <p><strong>DIF TC:</strong> ${t.dif_tc.toFixed(2)}</p>
-          <p><strong>Cambio a USD:</strong> $${t.cambio_usd.toFixed(2)}</p>
-          <p><strong>Estado:</strong> ${t.recepcionada}</p>
-          <p><strong>Transacción:</strong> ${t.transaccion || "-"}</p>
-          <p><strong>Comentario:</strong> ${t.comentario || "-"}</p>
-        </div>
-      `,
-      width: "600px",
-    });
-  } catch (error) {
-    console.error("Error al obtener detalles:", error);
-    Swal.fire("Error", "No se pudieron cargar los detalles", "error");
+  if (datos.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="9" style="text-align: center;">No hay transferencias registradas</td></tr>';
+    return;
   }
+
+  datos.forEach((t) => {
+    const fecha = t.fecha ? new Date(t.fecha).toLocaleDateString("es-AR") : "-";
+    const estado = t.recepcionada || "Pendiente";
+    tbody.innerHTML += `
+      <tr>
+      <td>${fecha}</td>
+      <td>${t.cliente}</td>
+      <td>$${t.monto.toLocaleString("es-AR")}</td>
+      <td>$${t.cambio_usd.toLocaleString("es-AR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}</td>
+      <td>${t.tc_usd_salta.toLocaleString("es-AR")}</td>
+      <td>$${t.comision.toLocaleString("es-AR")}</td>
+      <td>$${t.dif_tc.toLocaleString("es-AR")}</td>
+      <td><span class="estado-${estado.toLowerCase()}">${estado}</span></td>
+      <td>
+        <button class="btn-editar" onclick="verDetallesTransferencia('${
+          t.id
+        }')">Ver</button>
+        <button onclick="eliminarRegistro('transferencias', '${
+          t.id
+        }', cargarTransferencias)">Eliminar</button>
+      </td>
+      </tr>`;
+  });
 }
 
 // ================== CABLES ==================
@@ -1672,7 +1699,17 @@ window.eliminarRegistro = async (coleccion, id, callback) => {
 
   if (result.isConfirmed) {
     try {
-      await db.collection(coleccion).doc(id).delete();
+      // Obtener datos del registro antes de eliminarlo (para historial)
+      const docRef = db.collection(coleccion).doc(id);
+      const docSnap = await docRef.get();
+      const datosAnteriores = docSnap.data();
+
+      // Eliminar el registro
+      await docRef.delete();
+
+      // Registrar en historial
+      await registrarHistorial(coleccion, "eliminar", id, datosAnteriores);
+
       callback();
       Swal.fire("Eliminado", "El registro ha sido eliminado.", "success");
     } catch (error) {
@@ -1695,3 +1732,626 @@ window.verDetallesCable = verDetallesCable;
 window.verDetallesCash = verDetallesCash;
 window.verDetallesIngresoPesos = verDetallesIngresoPesos;
 window.verDetallesDescuentoCheque = verDetallesDescuentoCheque;
+
+// CONFIGURACIÓN DE PAGINACIÓN
+// Objeto para almacenar el estado de la paginación para cada módulo
+const estadoPaginacion = {
+  transferencias: { pagina: 1, registrosPorPagina: 10, total: 0 },
+  cables: { pagina: 1, registrosPorPagina: 10, total: 0 },
+  cash_to_cash: { pagina: 1, registrosPorPagina: 10, total: 0 },
+  ingreso_pesos: { pagina: 1, registrosPorPagina: 10, total: 0 },
+  descuento_cheque: { pagina: 1, registrosPorPagina: 10, total: 0 },
+  historial: { pagina: 1, registrosPorPagina: 10, total: 0 },
+};
+
+// Almacenamiento temporal de todos los registros (para exportación y paginación)
+const datosCompletos = {
+  transferencias: [],
+  cables: [],
+  cash_to_cash: [],
+  ingreso_pesos: [],
+  descuento_cheque: [],
+  historial: [],
+};
+
+// Funciones de paginación
+function cambiarRegistrosPorPagina(modulo, valor) {
+  estadoPaginacion[modulo].registrosPorPagina = parseInt(valor);
+  estadoPaginacion[modulo].pagina = 1;
+  actualizarTablaPaginada(modulo);
+}
+
+function paginaAnterior(modulo) {
+  if (estadoPaginacion[modulo].pagina > 1) {
+    estadoPaginacion[modulo].pagina--;
+    actualizarTablaPaginada(modulo);
+  }
+}
+
+function paginaSiguiente(modulo) {
+  const totalPaginas = Math.ceil(
+    estadoPaginacion[modulo].total / estadoPaginacion[modulo].registrosPorPagina
+  );
+  if (estadoPaginacion[modulo].pagina < totalPaginas) {
+    estadoPaginacion[modulo].pagina++;
+    actualizarTablaPaginada(modulo);
+  }
+}
+
+function actualizarTablaPaginada(modulo) {
+  // Mostrar loader
+  document.getElementById("loader").classList.add("active");
+
+  setTimeout(() => {
+    const inicio =
+      (estadoPaginacion[modulo].pagina - 1) *
+      estadoPaginacion[modulo].registrosPorPagina;
+    const fin = inicio + estadoPaginacion[modulo].registrosPorPagina;
+    const datosPaginados = datosCompletos[modulo].slice(inicio, fin);
+
+    // Actualizar la página actual
+    document.getElementById(
+      `paginaActual${modulo.charAt(0).toUpperCase() + modulo.slice(1)}`
+    ).textContent = `Página ${estadoPaginacion[modulo].pagina} de ${Math.ceil(
+      estadoPaginacion[modulo].total /
+        estadoPaginacion[modulo].registrosPorPagina
+    )}`;
+
+    // Habilitar/deshabilitar botones de navegación
+    document.getElementById(
+      `btnAnterior${modulo.charAt(0).toUpperCase() + modulo.slice(1)}`
+    ).disabled = estadoPaginacion[modulo].pagina === 1;
+    document.getElementById(
+      `btnSiguiente${modulo.charAt(0).toUpperCase() + modulo.slice(1)}`
+    ).disabled =
+      estadoPaginacion[modulo].pagina ===
+      Math.ceil(
+        estadoPaginacion[modulo].total /
+          estadoPaginacion[modulo].registrosPorPagina
+      );
+
+    // Renderizar los datos según el módulo
+    switch (modulo) {
+      case "transferencias":
+        renderizarTablaTransferencias(datosPaginados);
+        break;
+      case "cables":
+        renderizarTablaCables(datosPaginados);
+        break;
+      case "cash_to_cash":
+        renderizarTablaCash(datosPaginados);
+        break;
+      case "ingreso_pesos":
+        renderizarTablaIngresoPesos(datosPaginados);
+        break;
+      case "descuento_cheque":
+        renderizarTablaDescuentoCheque(datosPaginados);
+        break;
+      case "historial":
+        renderizarTablaHistorial(datosPaginados);
+        break;
+    }
+
+    // Ocultar loader
+    document.getElementById("loader").classList.remove("active");
+  }, 300);
+}
+
+// SISTEMA DE AUDITORÍA/HISTORIAL DE CAMBIOS
+// Función para registrar una acción en el historial
+async function registrarHistorial(tipoRegistro, accion, idRegistro, detalles) {
+  try {
+    // Obtener fecha y hora actual
+    const fechaHora = new Date();
+
+    // Guardar en Firestore
+    await db.collection("historial").add({
+      fecha: fechaHora.toISOString().split("T")[0],
+      hora: fechaHora.toTimeString().split(" ")[0],
+      usuario: "usuario_actual", // Aquí se podría implementar un sistema de autenticación
+      tipo_registro: tipoRegistro,
+      accion: accion,
+      id_registro: idRegistro,
+      detalles: detalles,
+      timestamp: fechaHora,
+    });
+
+    console.log(`Acción registrada en historial: ${accion} en ${tipoRegistro}`);
+  } catch (error) {
+    console.error("Error al registrar historial:", error);
+  }
+}
+
+// Cargar historial de cambios
+async function cargarHistorial(filtros = {}) {
+  const tbody = document.getElementById("tablaHistorial");
+  tbody.innerHTML = "";
+
+  try {
+    document.getElementById("loader").classList.add("active");
+
+    // Construir la consulta base
+    let query = db.collection("historial").orderBy("timestamp", "desc");
+
+    // Aplicar filtros
+    if (filtros.fechaDesde) {
+      const fechaDesde = new Date(filtros.fechaDesde);
+      fechaDesde.setHours(0, 0, 0, 0);
+      query = query.where("timestamp", ">=", fechaDesde);
+    }
+
+    if (filtros.fechaHasta) {
+      const fechaHasta = new Date(filtros.fechaHasta);
+      fechaHasta.setHours(23, 59, 59, 999);
+      query = query.where("timestamp", "<=", fechaHasta);
+    }
+
+    if (filtros.tipoRegistro && filtros.tipoRegistro !== "todos") {
+      query = query.where("tipo_registro", "==", filtros.tipoRegistro);
+    }
+
+    if (filtros.tipoAccion && filtros.tipoAccion !== "todos") {
+      query = query.where("accion", "==", filtros.tipoAccion);
+    }
+
+    // Ejecutar consulta
+    const snap = await query.get();
+
+    if (snap.empty) {
+      tbody.innerHTML =
+        '<tr><td colspan="6" style="text-align: center;">No hay registros de historial</td></tr>';
+      document.getElementById("loader").classList.remove("active");
+      return;
+    }
+
+    // Almacenar todos los datos para paginación
+    datosCompletos.historial = snap.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Actualizar estado de paginación
+    estadoPaginacion.historial.total = datosCompletos.historial.length;
+    estadoPaginacion.historial.pagina = 1;
+
+    // Renderizar datos paginados
+    actualizarTablaPaginada("historial");
+  } catch (error) {
+    console.error("Error al cargar historial:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "Error al cargar el historial: " + error.message,
+    });
+    document.getElementById("loader").classList.remove("active");
+  }
+}
+
+// Función para renderizar la tabla de historial
+function renderizarTablaHistorial(datos) {
+  const tbody = document.getElementById("tablaHistorial");
+  tbody.innerHTML = "";
+
+  if (datos.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="6" style="text-align: center;">No hay registros de historial</td></tr>';
+    return;
+  }
+
+  datos.forEach((h) => {
+    const fecha = `${h.fecha} ${h.hora}`;
+    const claseAccion = `accion-${h.accion.toLowerCase()}`;
+
+    tbody.innerHTML += `
+      <tr>
+        <td>${fecha}</td>
+        <td>${h.usuario}</td>
+        <td>${h.tipo_registro}</td>
+        <td class="${claseAccion}">${h.accion}</td>
+        <td>${h.id_registro}</td>
+        <td>
+          <button class="btn-ver-detalles" onclick="mostrarDetallesHistorial('${h.id}')">
+            Ver detalles
+          </button>
+        </td>
+      </tr>`;
+  });
+}
+
+// Función para mostrar detalles del historial
+async function mostrarDetallesHistorial(id) {
+  try {
+    const doc = await db.collection("historial").doc(id).get();
+    if (!doc.exists) {
+      Swal.fire("Error", "Registro no encontrado", "error");
+      return;
+    }
+
+    const h = doc.data();
+
+    // Formatear los detalles para mostrarlos
+    let detallesHTML = "";
+    if (typeof h.detalles === "object") {
+      // Si es un objeto, convertirlo a formato legible
+      for (const [key, value] of Object.entries(h.detalles)) {
+        detallesHTML += `<p><strong>${key}:</strong> ${value}</p>`;
+      }
+    } else {
+      detallesHTML = `<p>${h.detalles || "No hay detalles disponibles"}</p>`;
+    }
+
+    Swal.fire({
+      title: `Detalles del Cambio`,
+      html: `
+        <div style="text-align: left; margin: 15px 0;">
+          <p><strong>Fecha:</strong> ${fecha}</p>
+          <p><strong>Usuario:</strong> ${h.usuario}</p>
+          <p><strong>Tipo de Registro:</strong> ${h.tipo_registro}</p>
+          <p><strong>Acción:</strong> <span class="accion-${h.accion.toLowerCase()}">${
+        h.accion
+      }</span></p>
+          <p><strong>ID Registro:</strong> ${h.id_registro}</p>
+          <h4>Detalles:</h4>
+          <div style="max-height: 300px; overflow-y: auto; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+            ${detallesHTML}
+          </div>
+        </div>
+      `,
+      width: "600px",
+    });
+  } catch (error) {
+    console.error("Error al obtener detalles del historial:", error);
+    Swal.fire("Error", "No se pudieron cargar los detalles", "error");
+  }
+}
+
+// Evento para filtrar historial
+document
+  .getElementById("btnFiltrarHistorial")
+  ?.addEventListener("click", () => {
+    const filtros = {
+      fechaDesde: document.getElementById("fechaDesdeHistorial").value,
+      fechaHasta: document.getElementById("fechaHastaHistorial").value,
+      tipoRegistro: document.getElementById("tipoRegistroHistorial").value,
+      tipoAccion: document.getElementById("tipoAccionHistorial").value,
+    };
+
+    cargarHistorial(filtros);
+  });
+
+// EXPORTACIÓN DE DATOS
+// Función para exportar datos a Excel
+function exportarAExcel(datos, nombreArchivo) {
+  // Crear una hoja de trabajo
+  const worksheet = XLSX.utils.json_to_sheet(datos);
+
+  // Crear un libro de trabajo
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Datos");
+
+  // Guardar el archivo
+  XLSX.writeFile(workbook, `${nombreArchivo}.xlsx`);
+}
+
+// Función para exportar datos a PDF
+function exportarAPdf(datos, columnas, nombreArchivo) {
+  // Crear un nuevo documento PDF
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  // Añadir título
+  doc.setFontSize(18);
+  doc.text(nombreArchivo, 14, 22);
+
+  // Añadir fecha de generación
+  doc.setFontSize(11);
+  doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 30);
+
+  // Crear tabla con los datos
+  doc.autoTable({
+    startY: 35,
+    head: [columnas],
+    body: datos.map((item) => columnas.map((col) => item[col] || "")),
+    theme: "striped",
+    headStyles: {
+      fillColor: [26, 61, 124],
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+    },
+  });
+
+  // Guardar el PDF
+  doc.save(`${nombreArchivo}.pdf`);
+}
+
+// Función principal de exportación de datos
+function exportarDatos(modulo, formato) {
+  // Mostrar loader
+  document.getElementById("loader").classList.add("active");
+
+  setTimeout(() => {
+    let datos = [];
+    let nombreArchivo = "";
+    let columnas = [];
+
+    // Preparar datos según el módulo
+    switch (modulo) {
+      case "resumen":
+        datos = obtenerDatosResumen();
+        nombreArchivo = "Resumen_Comisiones";
+        columnas = ["Tipo", "Cantidad", "ComisionUSD", "ComisionARS"];
+        break;
+
+      case "transferencias":
+        datos = transformarDatosParaExportar(datosCompletos.transferencias);
+        nombreArchivo = "Transferencias";
+        columnas = [
+          "Fecha",
+          "Cliente",
+          "MontoARS",
+          "CambioUSD",
+          "TCAplicado",
+          "Comision",
+          "DIFTC",
+          "Estado",
+        ];
+        break;
+
+      case "cables":
+        datos = transformarDatosParaExportar(datosCompletos.cables);
+        nombreArchivo = "Cables";
+        columnas = [
+          "Fecha",
+          "Cliente",
+          "MontoUSD",
+          "ComisionPorc",
+          "ComisionUSD",
+          "Estado",
+        ];
+        break;
+
+      case "cash_to_cash":
+        datos = transformarDatosParaExportar(datosCompletos.cash_to_cash);
+        nombreArchivo = "Cash_to_Cash";
+        columnas = [
+          "Fecha",
+          "Cliente",
+          "MontoUSD",
+          "ComisionPorc",
+          "ComisionUSD",
+          "Estado",
+        ];
+        break;
+
+      case "ingreso_pesos":
+        datos = transformarDatosParaExportar(datosCompletos.ingreso_pesos);
+        nombreArchivo = "Ingreso_Pesos";
+        columnas = [
+          "Fecha",
+          "Cliente",
+          "Operador",
+          "MontoARS",
+          "ComisionPorc",
+          "ComisionARS",
+          "Estado",
+        ];
+        break;
+
+      case "descuento_cheque":
+        datos = transformarDatosParaExportar(datosCompletos.descuento_cheque);
+        nombreArchivo = "Descuento_Cheques";
+        columnas = [
+          "Fecha",
+          "Cliente",
+          "Monto",
+          "Tasa",
+          "Dias",
+          "Interes",
+          "MontoDescontado",
+          "Estado",
+        ];
+        break;
+
+      case "historial":
+        datos = transformarDatosParaExportar(datosCompletos.historial);
+        nombreArchivo = "Historial_Cambios";
+        columnas = [
+          "Fecha",
+          "Hora",
+          "Usuario",
+          "TipoRegistro",
+          "Accion",
+          "IdRegistro",
+        ];
+        break;
+    }
+
+    // Exportar según el formato
+    if (formato === "excel") {
+      exportarAExcel(datos, nombreArchivo);
+    } else if (formato === "pdf") {
+      exportarAPdf(datos, columnas, nombreArchivo);
+    }
+
+    // Ocultar loader
+    document.getElementById("loader").classList.remove("active");
+
+    // Notificar al usuario
+    Swal.fire({
+      icon: "success",
+      title: "Exportación completada",
+      text: `Los datos se han exportado correctamente en formato ${formato.toUpperCase()}`,
+      timer: 2000,
+      timerProgressBar: true,
+      showConfirmButton: false,
+    });
+  }, 500);
+}
+
+// Función auxiliar para transformar datos para exportación
+function transformarDatosParaExportar(datos) {
+  return datos.map((item) => {
+    const datoExportado = {};
+
+    // Convertir propiedades con guión bajo a camelCase para Excel
+    Object.keys(item).forEach((key) => {
+      if (key !== "id" && key !== "timestamp" && key !== "detalles") {
+        // Convertir snake_case a CamelCase para nombres de columna
+        const newKey = key
+          .split("_")
+          .map((part, index) =>
+            index === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)
+          )
+          .join("");
+
+        // Formatear valores según su tipo
+        if (typeof item[key] === "number") {
+          datoExportado[newKey] = item[key].toFixed(2);
+        } else if (key === "fecha" && item[key]) {
+          datoExportado[newKey] = new Date(item[key]).toLocaleDateString(
+            "es-AR"
+          );
+        } else {
+          datoExportado[newKey] = item[key];
+        }
+      }
+    });
+
+    return datoExportado;
+  });
+}
+
+// Función para obtener datos del resumen para exportación
+function obtenerDatosResumen() {
+  const datos = [];
+  const filas = document.querySelectorAll("#tablaResumen tr:not(.total-row)");
+
+  filas.forEach((fila) => {
+    const celdas = fila.querySelectorAll("td");
+    if (celdas.length >= 4) {
+      datos.push({
+        Tipo: celdas[0].textContent,
+        Cantidad: parseInt(celdas[1].textContent) || 0,
+        ComisionUSD: celdas[2].textContent.replace("$", ""),
+        ComisionARS: celdas[3].textContent.replace("$", ""),
+      });
+    }
+  });
+
+  // Agregar fila de totales
+  const totalRow = document.querySelector("#tablaResumen tr.total-row");
+  if (totalRow) {
+    const totalCeldas = totalRow.querySelectorAll("td");
+    datos.push({
+      Tipo: "TOTAL",
+      Cantidad: parseInt(totalCeldas[1].textContent) || 0,
+      ComisionUSD: totalCeldas[2].textContent.replace("$", ""),
+      ComisionARS: totalCeldas[3].textContent.replace("$", ""),
+    });
+  }
+
+  return datos;
+}
+
+// Funcionalidad para el menú hamburguesa en dispositivos móviles
+document.addEventListener("DOMContentLoaded", function () {
+  const menuToggle = document.getElementById("menuToggle");
+  const mainNav = document.getElementById("mainNav");
+  const overlay = document.getElementById("overlay");
+  const navButtons = mainNav.querySelectorAll("button");
+
+  // Abrir/cerrar menú al hacer clic en el botón de hamburguesa
+  menuToggle.addEventListener("click", function () {
+    mainNav.classList.toggle("active");
+    overlay.classList.toggle("active");
+    document.body.classList.toggle("menu-open");
+  });
+
+  // Cerrar menú al hacer clic en el overlay
+  overlay.addEventListener("click", function () {
+    mainNav.classList.remove("active");
+    overlay.classList.remove("active");
+    document.body.classList.remove("menu-open");
+  });
+
+  // Cerrar menú al hacer clic en un botón de navegación
+  navButtons.forEach((button) => {
+    button.addEventListener("click", function () {
+      if (window.innerWidth <= 768) {
+        mainNav.classList.remove("active");
+        overlay.classList.remove("active");
+        document.body.classList.remove("menu-open");
+      }
+    });
+  });
+
+  // Ajustar menú si cambia el tamaño de la ventana
+  window.addEventListener("resize", function () {
+    if (window.innerWidth > 768) {
+      mainNav.classList.remove("active");
+      overlay.classList.remove("active");
+      document.body.classList.remove("menu-open");
+    }
+  });
+});
+
+// Funcionalidad para el menú hamburguesa móvil
+document.addEventListener("DOMContentLoaded", function () {
+  const menuToggle = document.getElementById("menuToggle");
+  const mainNav = document.getElementById("mainNav");
+  const overlay = document.getElementById("overlay");
+
+  if (menuToggle && mainNav && overlay) {
+    menuToggle.addEventListener("click", function () {
+      mainNav.classList.toggle("active");
+      overlay.classList.toggle("active");
+      document.body.classList.toggle("no-scroll");
+    });
+
+    overlay.addEventListener("click", function () {
+      mainNav.classList.remove("active");
+      overlay.classList.remove("active");
+      document.body.classList.remove("no-scroll");
+    });
+
+    // Cerrar menú cuando se hace clic en una opción del menú
+    const navButtons = mainNav.querySelectorAll("button");
+    navButtons.forEach((button) => {
+      button.addEventListener("click", function () {
+        mainNav.classList.remove("active");
+        overlay.classList.remove("active");
+        document.body.classList.remove("no-scroll");
+      });
+    });
+
+    // Ajustar menú en cambio de tamaño de ventana
+    window.addEventListener("resize", function () {
+      if (window.innerWidth > 768 && mainNav.classList.contains("active")) {
+        mainNav.classList.remove("active");
+        overlay.classList.remove("active");
+        document.body.classList.remove("no-scroll");
+      }
+    });
+  }
+});
+
+// Funcionalidad para el menú hamburguesa
+document.addEventListener("DOMContentLoaded", function () {
+  const menuToggle = document.querySelector(".menu-toggle");
+  const mainNav = document.getElementById("mainNav");
+  const overlay = document.getElementById("overlay");
+
+  if (menuToggle && mainNav && overlay) {
+    menuToggle.addEventListener("click", function () {
+      mainNav.classList.toggle("active");
+      overlay.classList.toggle("active");
+      document.body.classList.toggle("no-scroll");
+    });
+
+    overlay.addEventListener("click", function () {
+      mainNav.classList.remove("active");
+      overlay.classList.remove("active");
+      document.body.classList.remove("no-scroll");
+    });
+  }
+});
