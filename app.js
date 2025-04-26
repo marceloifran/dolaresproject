@@ -5,6 +5,27 @@ const db = firebase.firestore();
 const getVal = (id) => document.getElementById(id).value;
 const clearForm = (formId) => document.getElementById(formId).reset();
 
+// CONFIGURACIÓN DE PAGINACIÓN
+// Objeto para almacenar el estado de la paginación para cada módulo
+const estadoPaginacion = {
+  transferencias: { pagina: 1, registrosPorPagina: 10, total: 0 },
+  cables: { pagina: 1, registrosPorPagina: 10, total: 0 },
+  cash_to_cash: { pagina: 1, registrosPorPagina: 10, total: 0 },
+  ingreso_pesos: { pagina: 1, registrosPorPagina: 10, total: 0 },
+  descuento_cheque: { pagina: 1, registrosPorPagina: 10, total: 0 },
+  historial: { pagina: 1, registrosPorPagina: 10, total: 0 },
+};
+
+// Almacenamiento temporal de todos los registros (para exportación y paginación)
+const datosCompletos = {
+  transferencias: [],
+  cables: [],
+  cash_to_cash: [],
+  ingreso_pesos: [],
+  descuento_cheque: [],
+  historial: [],
+};
+
 // Mostrar/ocultar módulos
 function mostrarModulo(modulo) {
   // Ocultar todos los módulos
@@ -55,6 +76,8 @@ window.addEventListener("DOMContentLoaded", () => {
   cargarCash();
   cargarIngresoPesos();
   cargarDescuentoCheque();
+  cargarCuentaCorrientePesos();
+  cargarCuentaCorrienteDolares();
 
   // Configurar filtros de fecha para el resumen
   document
@@ -76,6 +99,9 @@ window.addEventListener("DOMContentLoaded", () => {
   // Inicializar formularios de operadores y clientes
   inicializarFormularioOperadores();
   inicializarFormularioClientes();
+  
+  // Inicializar formularios de cuenta corriente
+  inicializarFormulariosCuentaCorriente();
 
   // Inicializar historial
   document
@@ -114,6 +140,19 @@ window.addEventListener("DOMContentLoaded", () => {
       d.style.display = "none";
     });
   });
+
+  document.getElementById("tipoRegistroHistorial").innerHTML = `
+    <option value="todos">Todos los registros</option>
+    <option value="transferencias">Transferencias</option>
+    <option value="cables">Cables</option>
+    <option value="cash_to_cash">Cash to Cash</option>
+    <option value="ingreso_pesos">Ingreso Pesos</option>
+    <option value="descuento_cheque">Descuento Cheque</option>
+    <option value="operadores">Operadores</option>
+    <option value="clientes">Clientes</option>
+    <option value="cuentaCorrientePesos">Cuenta Corriente Pesos</option>
+    <option value="cuentaCorrienteDolares">Cuenta Corriente Dólares</option>
+  `;
 });
 
 // ================== OPERADORES ==================
@@ -422,64 +461,86 @@ async function editarCliente(id) {
 // Función para llenar los selects de operadores y clientes
 async function cargarListasOperadoresClientes() {
   try {
-    // Cargar operadores en los selectores
-    const selectores = ["operadorTrans", "operadorIngreso"];
-    const operadores = await db
-      .collection("operadores")
-      .orderBy("nombre")
-      .get();
-
-    selectores.forEach((selector) => {
-      const select = document.getElementById(selector);
-      if (!select) return;
-
-      // Conservar la opción seleccionada
-      const valorSeleccionado = select.value;
-      select.innerHTML = '<option value="">Seleccione Operador</option>';
-
-      operadores.forEach((doc) => {
-        const operador = doc.data();
-        const option = document.createElement("option");
-        option.value = operador.nombre;
-        option.textContent = operador.nombre;
-        select.appendChild(option);
+    // Operadores para los selectores
+    const snapOperadores = await db.collection("operadores").orderBy("nombre").get();
+    
+    const operadores = [];
+    snapOperadores.forEach((doc) => {
+      operadores.push({
+        id: doc.id,
+        nombre: doc.data().nombre,
       });
+    });
 
-      // Restaurar valor seleccionado si existía
-      if (valorSeleccionado) {
-        select.value = valorSeleccionado;
+    // Rellenar todos los selectores de operadores
+    const selectoresOperadores = [
+      "operadorTrans",
+      "operadorIngreso"
+    ];
+
+    selectoresOperadores.forEach((id) => {
+      const selector = document.getElementById(id);
+      if (selector) {
+        // Guardar la opción seleccionada actual
+        const valorSeleccionado = selector.value;
+        
+        // Limpiar y agregar primera opción
+        selector.innerHTML = '<option value="">Seleccione Operador</option>';
+        
+        // Agregar operadores
+        operadores.forEach((op) => {
+          selector.innerHTML += `<option value="${op.id}">${op.nombre}</option>`;
+        });
+        
+        // Restaurar selección anterior si existía
+        if (valorSeleccionado) {
+          selector.value = valorSeleccionado;
+        }
       }
     });
 
-    // Cargar clientes en los selectores
+    // Clientes para los selectores
+    const snapClientes = await db.collection("clientes").orderBy("nombre").get();
+    
+    const clientes = [];
+    snapClientes.forEach((doc) => {
+      clientes.push({
+        id: doc.id,
+        nombre: doc.data().nombre,
+      });
+    });
+
+    // Rellenar todos los selectores de clientes
     const selectoresClientes = [
       "clienteTrans",
       "clienteCable",
       "clienteCash",
       "clienteIngreso",
       "clienteCheque",
+      "clienteCCPesos",
+      "clienteCCDolares",
+      "clienteMovimientoPesos",
+      "clienteMovimientoDolares"
     ];
-    const clientes = await db.collection("clientes").orderBy("nombre").get();
 
-    selectoresClientes.forEach((selector) => {
-      const select = document.getElementById(selector);
-      if (!select) return;
-
-      // Conservar la opción seleccionada
-      const valorSeleccionado = select.value;
-      select.innerHTML = '<option value="">Seleccione Cliente</option>';
-
-      clientes.forEach((doc) => {
-        const cliente = doc.data();
-        const option = document.createElement("option");
-        option.value = cliente.nombre;
-        option.textContent = cliente.nombre;
-        select.appendChild(option);
-      });
-
-      // Restaurar valor seleccionado si existía
-      if (valorSeleccionado) {
-        select.value = valorSeleccionado;
+    selectoresClientes.forEach((id) => {
+      const selector = document.getElementById(id);
+      if (selector) {
+        // Guardar la opción seleccionada actual
+        const valorSeleccionado = selector.value;
+        
+        // Limpiar y agregar primera opción
+        selector.innerHTML = '<option value="">Seleccione Cliente</option>';
+        
+        // Agregar clientes
+        clientes.forEach((cl) => {
+          selector.innerHTML += `<option value="${cl.id}">${cl.nombre}</option>`;
+        });
+        
+        // Restaurar selección anterior si existía
+        if (valorSeleccionado) {
+          selector.value = valorSeleccionado;
+        }
       }
     });
   } catch (error) {
@@ -531,21 +592,26 @@ async function cargarResumenAutomatico(periodo = "todo") {
         tipo: "Transferencias",
         cantidad: transferencias.length,
         comisionUsd: transferencias.reduce((total, item) => {
-          // Calcular el equivalente en USD de la comisión en ARS
-          const comisionUsd = item.comision_ars / item.tc_usd_salta;
+          // Garantizar que los valores sean números válidos
+          const comision = parseFloat(item.comision || 0);
+          const tc = parseFloat(item.tc_usd_salta || 1);
+          // Calcular el equivalente en USD de la comisión en ARS si tc es válido
+          const comisionUsd = tc > 0 ? comision / tc : 0;
           return total + comisionUsd;
         }, 0),
-        comisionArs: transferencias.reduce(
-          (total, item) => total + item.comision_ars,
-          0
-        ),
+        comisionArs: transferencias.reduce((total, item) => {
+          const comision = parseFloat(item.comision || 0);
+          return total + comision;
+        }, 0),
       },
       {
         tipo: "Cables",
         cantidad: cables.length,
         comisionUsd: cables.reduce(
-          (total, item) => total + item.comision_usd,
-          0
+          (total, item) => {
+            const comision = parseFloat(item.comision_usd || 0);
+            return total + comision;
+          }, 0
         ),
         comisionArs: 0,
       },
@@ -553,8 +619,10 @@ async function cargarResumenAutomatico(periodo = "todo") {
         tipo: "Cash to Cash",
         cantidad: cashToCash.length,
         comisionUsd: cashToCash.reduce(
-          (total, item) => total + item.comision_usd,
-          0
+          (total, item) => {
+            const comision = parseFloat(item.comision_usd || 0);
+            return total + comision;
+          }, 0
         ),
         comisionArs: 0,
       },
@@ -563,8 +631,10 @@ async function cargarResumenAutomatico(periodo = "todo") {
         cantidad: ingresoPesos.length,
         comisionUsd: 0,
         comisionArs: ingresoPesos.reduce(
-          (total, item) => total + item.comision_ars,
-          0
+          (total, item) => {
+            const comision = parseFloat(item.comision_ars || 0);
+            return total + comision;
+          }, 0
         ),
       },
       {
@@ -572,25 +642,38 @@ async function cargarResumenAutomatico(periodo = "todo") {
         cantidad: descuentoCheque.length,
         comisionUsd: 0,
         comisionArs: descuentoCheque.reduce(
-          (total, item) => total + item.comision,
-          0
+          (total, item) => {
+            const comision = parseFloat(item.comision || 0);
+            return total + comision;
+          }, 0
         ),
       },
     ];
 
-    // Calcular totales
+    // Calcular totales asegurando que son números válidos
     const totalUsd = resumen.reduce(
-      (total, item) => total + item.comisionUsd,
+      (total, item) => total + (isNaN(item.comisionUsd) ? 0 : item.comisionUsd),
       0
     );
     const totalArs = resumen.reduce(
-      (total, item) => total + item.comisionArs,
+      (total, item) => total + (isNaN(item.comisionArs) ? 0 : item.comisionArs),
       0
     );
 
-    // Mostrar totales
-    totalUsdElement.textContent = `$${totalUsd.toFixed(2)}`;
-    totalArsElement.textContent = `$${totalArs.toLocaleString("es-AR")}`;
+    // Mostrar totales con formato
+    totalUsdElement.textContent = totalUsd.toLocaleString("es-AR", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    
+    totalArsElement.textContent = totalArs.toLocaleString("es-AR", {
+      style: "currency",
+      currency: "ARS",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
 
     // Mostrar resumen en la tabla
     tbody.innerHTML = "";
@@ -602,31 +685,61 @@ async function cargarResumenAutomatico(periodo = "todo") {
     }
 
     resumen.forEach((item) => {
+      // Formatear los valores numéricos con locale
+      const comisionUsdFormateada = item.comisionUsd.toLocaleString("es-AR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+      
+      const comisionArsFormateada = item.comisionArs.toLocaleString("es-AR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+      
       tbody.innerHTML += `
         <tr>
           <td>${item.tipo}</td>
           <td>${item.cantidad}</td>
-          <td>$${item.comisionUsd.toFixed(2)}</td>
-          <td>$${item.comisionArs.toLocaleString("es-AR")}</td>
+          <td>$${comisionUsdFormateada}</td>
+          <td>$${comisionArsFormateada}</td>
         </tr>
       `;
+    });
+
+    // Calcular el total de cantidades
+    const totalCantidad = resumen.reduce(
+      (total, item) => total + item.cantidad,
+      0
+    );
+
+    // Formatear los totales para la fila final
+    const totalUsdFormateado = totalUsd.toLocaleString("es-AR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    
+    const totalArsFormateado = totalArs.toLocaleString("es-AR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     });
 
     // Agregar fila de totales
     tbody.innerHTML += `
       <tr class="total-row">
         <td><strong>TOTAL</strong></td>
-        <td><strong>${resumen.reduce(
-          (total, item) => total + item.cantidad,
-          0
-        )}</strong></td>
-        <td><strong>$${totalUsd.toFixed(2)}</strong></td>
-        <td><strong>$${totalArs.toLocaleString("es-AR")}</strong></td>
+        <td><strong>${totalCantidad}</strong></td>
+        <td><strong>$${totalUsdFormateado}</strong></td>
+        <td><strong>$${totalArsFormateado}</strong></td>
       </tr>
     `;
   } catch (error) {
     console.error("Error al cargar resumen:", error);
     tbody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Error al cargar los datos: ${error.message}</td></tr>`;
+    
+    // Restablecer los totales a cero para evitar NaN
+    totalUsdElement.textContent = "$0,00";
+    totalArsElement.textContent = "$0,00";
+    
     Swal.fire({
       icon: "error",
       title: "Error",
@@ -670,32 +783,71 @@ function obtenerFechaInicio(periodo) {
 
 // Función para obtener datos de una colección filtrados por fecha
 async function obtenerDatosConFiltro(coleccion, fechaInicio) {
-  const snap = await db
-    .collection(coleccion)
-    .orderBy("timestamp", "desc")
-    .get();
-  const datos = [];
+  try {
+    const snap = await db
+      .collection(coleccion)
+      .orderBy("timestamp", "desc")
+      .get();
+    const datos = [];
 
-  snap.forEach((doc) => {
-    const data = doc.data();
-    // Si tenemos una fecha de documento válida en timestamp, filtrar por ella
-    if (data.timestamp && data.timestamp instanceof Date) {
-      if (data.timestamp >= fechaInicio) {
-        datos.push(data);
+    snap.forEach((doc) => {
+      const data = doc.data();
+      let incluir = false;
+      let docTimestamp = null;
+      
+      // Manejar diferentes formatos de fecha
+      if (data.timestamp) {
+        // Caso 1: Es un timestamp de Firestore
+        if (typeof data.timestamp.toDate === 'function') {
+          docTimestamp = data.timestamp.toDate();
+        } 
+        // Caso 2: Es un objeto Date de JavaScript
+        else if (data.timestamp instanceof Date) {
+          docTimestamp = data.timestamp;
+        }
+        // Caso 3: Es un string que podemos convertir a Date
+        else if (typeof data.timestamp === 'string') {
+          docTimestamp = new Date(data.timestamp);
+        }
+      } 
+      // Intentar con el campo fecha si no hay timestamp
+      else if (data.fecha) {
+        // Caso 1: Es un timestamp de Firestore
+        if (typeof data.fecha.toDate === 'function') {
+          docTimestamp = data.fecha.toDate();
+        } 
+        // Caso 2: Es un objeto Date de JavaScript
+        else if (data.fecha instanceof Date) {
+          docTimestamp = data.fecha;
+        }
+        // Caso 3: Es un string que podemos convertir a Date
+        else if (typeof data.fecha === 'string') {
+          docTimestamp = new Date(data.fecha);
+        }
       }
-    } else if (data.fecha) {
-      // Si no hay timestamp pero hay fecha en formato string, intentar usar esa
-      const fechaDoc = new Date(data.fecha);
-      if (!isNaN(fechaDoc.getTime()) && fechaDoc >= fechaInicio) {
-        datos.push(data);
+      
+      // Verificar si la fecha del documento es válida y está en el rango
+      if (docTimestamp && !isNaN(docTimestamp.getTime())) {
+        incluir = docTimestamp >= fechaInicio;
+      } else {
+        // Si no hay forma de filtrar por fecha, incluir el documento
+        incluir = true;
       }
-    } else {
-      // Si no hay forma de filtrar por fecha, incluir todos los datos
-      datos.push(data);
-    }
-  });
+      
+      if (incluir) {
+        // Añadir el ID del documento a los datos
+        datos.push({
+          id: doc.id,
+          ...data
+        });
+      }
+    });
 
-  return datos;
+    return datos;
+  } catch (error) {
+    console.error(`Error al obtener datos de ${coleccion}:`, error);
+    return []; // Devolver array vacío en caso de error
+  }
 }
 
 // Eliminar el antiguo formResumen puesto que ahora es automático
@@ -815,7 +967,8 @@ formTransferencias.onsubmit = async (e) => {
       monto: monto,
       tc_usd_bsas: tcBsAs,
       tc_usd_salta: tcSalta,
-      comision: comision,
+      comision: comision,          // Nombre del campo para aplicar a todos los cálculos
+      comision_ars: comision,      // Mantener compatibilidad con código existente
       cambio_usd: cambioUsd,
       dif_tc: difTc,
       monto_neto: montoNeto,
@@ -1733,27 +1886,6 @@ window.verDetallesCash = verDetallesCash;
 window.verDetallesIngresoPesos = verDetallesIngresoPesos;
 window.verDetallesDescuentoCheque = verDetallesDescuentoCheque;
 
-// CONFIGURACIÓN DE PAGINACIÓN
-// Objeto para almacenar el estado de la paginación para cada módulo
-const estadoPaginacion = {
-  transferencias: { pagina: 1, registrosPorPagina: 10, total: 0 },
-  cables: { pagina: 1, registrosPorPagina: 10, total: 0 },
-  cash_to_cash: { pagina: 1, registrosPorPagina: 10, total: 0 },
-  ingreso_pesos: { pagina: 1, registrosPorPagina: 10, total: 0 },
-  descuento_cheque: { pagina: 1, registrosPorPagina: 10, total: 0 },
-  historial: { pagina: 1, registrosPorPagina: 10, total: 0 },
-};
-
-// Almacenamiento temporal de todos los registros (para exportación y paginación)
-const datosCompletos = {
-  transferencias: [],
-  cables: [],
-  cash_to_cash: [],
-  ingreso_pesos: [],
-  descuento_cheque: [],
-  historial: [],
-};
-
 // Funciones de paginación
 function cambiarRegistrosPorPagina(modulo, valor) {
   estadoPaginacion[modulo].registrosPorPagina = parseInt(valor);
@@ -2065,160 +2197,228 @@ function exportarAPdf(datos, columnas, nombreArchivo) {
 }
 
 // Función principal de exportación de datos
-function exportarDatos(modulo, formato) {
-  // Mostrar loader
-  document.getElementById("loader").classList.add("active");
+async function exportarDatos(modulo, formato) {
+  let datos = [];
+  let columnas = [];
+  let nombreArchivo = "";
 
-  setTimeout(() => {
-    let datos = [];
-    let nombreArchivo = "";
-    let columnas = [];
+  // Bloquear la interfaz durante la exportación
+  document.getElementById("loader").style.display = "flex";
 
-    // Preparar datos según el módulo
+  try {
     switch (modulo) {
       case "resumen":
         datos = obtenerDatosResumen();
-        nombreArchivo = "Resumen_Comisiones";
-        columnas = ["Tipo", "Cantidad", "ComisionUSD", "ComisionARS"];
+        columnas = [
+          { header: "Tipo", dataKey: "tipo" },
+          { header: "Cantidad", dataKey: "cantidad" },
+          { header: "Comisión USD", dataKey: "comisionUsd" },
+          { header: "Comisión ARS", dataKey: "comisionArs" },
+        ];
+        nombreArchivo = "resumen_comisiones";
         break;
 
       case "transferencias":
-        datos = transformarDatosParaExportar(datosCompletos.transferencias);
-        nombreArchivo = "Transferencias";
+        datos = datosTransferencias;
         columnas = [
-          "Fecha",
-          "Cliente",
-          "MontoARS",
-          "CambioUSD",
-          "TCAplicado",
-          "Comision",
-          "DIFTC",
-          "Estado",
+          { header: "Fecha", dataKey: "fecha" },
+          { header: "Cliente", dataKey: "clienteNombre" },
+          { header: "Monto ARS", dataKey: "montoArs" },
+          { header: "Cambio USD", dataKey: "cambioUsd" },
+          { header: "TC BsAs", dataKey: "tcUsdBsAs" },
+          { header: "TC Salta", dataKey: "tcUsdSalta" },
+          { header: "DIF TC", dataKey: "difTc" },
+          { header: "Monto Neto", dataKey: "montoNeto" },
+          { header: "Comisión", dataKey: "comisionArs" },
+          { header: "Estado", dataKey: "recepcionada" },
+          { header: "Transacción", dataKey: "transaccion" },
+          { header: "Comentario", dataKey: "comentario" },
         ];
+        nombreArchivo = "transferencias";
         break;
 
       case "cables":
-        datos = transformarDatosParaExportar(datosCompletos.cables);
-        nombreArchivo = "Cables";
+        datos = datosCables;
         columnas = [
-          "Fecha",
-          "Cliente",
-          "MontoUSD",
-          "ComisionPorc",
-          "ComisionUSD",
-          "Estado",
+          { header: "Fecha", dataKey: "fecha" },
+          { header: "Cliente", dataKey: "clienteNombre" },
+          { header: "Monto USD", dataKey: "montoUsd" },
+          { header: "Comisión %", dataKey: "comisionPorc" },
+          { header: "Comisión USD", dataKey: "comisionUsd" },
+          { header: "Transacción", dataKey: "transaccion" },
+          { header: "Estado", dataKey: "ingreso" },
         ];
+        nombreArchivo = "cables";
         break;
 
       case "cash_to_cash":
-        datos = transformarDatosParaExportar(datosCompletos.cash_to_cash);
-        nombreArchivo = "Cash_to_Cash";
+        datos = datosCash;
         columnas = [
-          "Fecha",
-          "Cliente",
-          "MontoUSD",
-          "ComisionPorc",
-          "ComisionUSD",
-          "Estado",
+          { header: "Fecha", dataKey: "fecha" },
+          { header: "Cliente", dataKey: "clienteNombre" },
+          { header: "Monto USD", dataKey: "montoUsd" },
+          { header: "Comisión %", dataKey: "comisionPorc" },
+          { header: "Comisión USD", dataKey: "comisionUsd" },
+          { header: "Transacción", dataKey: "transaccion" },
+          { header: "Estado", dataKey: "estado" },
         ];
+        nombreArchivo = "cash_to_cash";
         break;
 
       case "ingreso_pesos":
-        datos = transformarDatosParaExportar(datosCompletos.ingreso_pesos);
-        nombreArchivo = "Ingreso_Pesos";
+        datos = datosIngresoPesos;
         columnas = [
-          "Fecha",
-          "Cliente",
-          "Operador",
-          "MontoARS",
-          "ComisionPorc",
-          "ComisionARS",
-          "Estado",
+          { header: "Fecha", dataKey: "fecha" },
+          { header: "Cliente", dataKey: "clienteNombre" },
+          { header: "Operador", dataKey: "operadorNombre" },
+          { header: "Monto ARS", dataKey: "montoArs" },
+          { header: "Comisión %", dataKey: "comisionPorc" },
+          { header: "Comisión ARS", dataKey: "comisionArs" },
+          { header: "Transacción", dataKey: "transaccion" },
+          { header: "Estado", dataKey: "estado" },
         ];
+        nombreArchivo = "ingreso_pesos";
         break;
 
       case "descuento_cheque":
-        datos = transformarDatosParaExportar(datosCompletos.descuento_cheque);
-        nombreArchivo = "Descuento_Cheques";
+        datos = datosDescuentoCheque;
         columnas = [
-          "Fecha",
-          "Cliente",
-          "Monto",
-          "Tasa",
-          "Dias",
-          "Interes",
-          "MontoDescontado",
-          "Estado",
+          { header: "Fecha", dataKey: "fecha" },
+          { header: "Cliente", dataKey: "clienteNombre" },
+          { header: "Monto", dataKey: "monto" },
+          { header: "Tasa %", dataKey: "tasa" },
+          { header: "Días", dataKey: "dias" },
+          { header: "Interés", dataKey: "interes" },
+          { header: "Monto Descontado", dataKey: "montoDescontado" },
+          { header: "Estado", dataKey: "estado" },
+          { header: "Observaciones", dataKey: "observaciones" },
         ];
+        nombreArchivo = "descuento_cheque";
         break;
 
       case "historial":
-        datos = transformarDatosParaExportar(datosCompletos.historial);
-        nombreArchivo = "Historial_Cambios";
+        datos = datosHistorial;
         columnas = [
-          "Fecha",
-          "Hora",
-          "Usuario",
-          "TipoRegistro",
-          "Accion",
-          "IdRegistro",
+          { header: "Fecha", dataKey: "fecha" },
+          { header: "Usuario", dataKey: "usuario" },
+          { header: "Tipo de Registro", dataKey: "tipoRegistro" },
+          { header: "Acción", dataKey: "accion" },
+          { header: "ID Registro", dataKey: "idRegistro" },
+          { header: "Detalles", dataKey: "detalles" },
         ];
+        nombreArchivo = "historial";
         break;
+        
+      case "cuentaCorrientePesos":
+        datos = await obtenerDatosCuentaCorriente("pesos");
+        columnas = [
+          { header: "Fecha Op.", dataKey: "fechaOp" },
+          { header: "Fecha Valor", dataKey: "fechaValor" },
+          { header: "Tipo Operación", dataKey: "tipoOperacion" },
+          { header: "Débito", dataKey: "debito" },
+          { header: "Crédito", dataKey: "credito" },
+          { header: "Saldo", dataKey: "saldo" },
+          { header: "Moneda", dataKey: "moneda" },
+          { header: "Concepto", dataKey: "concepto" },
+        ];
+        nombreArchivo = "cuenta_corriente_pesos";
+        break;
+        
+      case "cuentaCorrienteDolares":
+        datos = await obtenerDatosCuentaCorriente("dolares");
+        columnas = [
+          { header: "Fecha Op.", dataKey: "fechaOp" },
+          { header: "Fecha Valor", dataKey: "fechaValor" },
+          { header: "Tipo Operación", dataKey: "tipoOperacion" },
+          { header: "Débito", dataKey: "debito" },
+          { header: "Crédito", dataKey: "credito" },
+          { header: "Saldo", dataKey: "saldo" },
+          { header: "Moneda", dataKey: "moneda" },
+          { header: "Concepto", dataKey: "concepto" },
+        ];
+        nombreArchivo = "cuenta_corriente_dolares";
+        break;
+
+      default:
+        throw new Error("Módulo no válido para exportación");
     }
 
-    // Exportar según el formato
+    // Transformar datos para exportación
+    datos = transformarDatosParaExportar(datos);
+
+    // Exportar según formato solicitado
     if (formato === "excel") {
       exportarAExcel(datos, nombreArchivo);
     } else if (formato === "pdf") {
       exportarAPdf(datos, columnas, nombreArchivo);
     }
-
-    // Ocultar loader
-    document.getElementById("loader").classList.remove("active");
-
-    // Notificar al usuario
+  } catch (error) {
+    console.error("Error al exportar datos:", error);
     Swal.fire({
-      icon: "success",
-      title: "Exportación completada",
-      text: `Los datos se han exportado correctamente en formato ${formato.toUpperCase()}`,
-      timer: 2000,
-      timerProgressBar: true,
-      showConfirmButton: false,
+      icon: "error",
+      title: "Error",
+      text: "No se pudieron exportar los datos: " + error.message,
     });
-  }, 500);
+  } finally {
+    // Desbloquear la interfaz
+    document.getElementById("loader").style.display = "none";
+  }
 }
 
-// Función auxiliar para transformar datos para exportación
-function transformarDatosParaExportar(datos) {
-  return datos.map((item) => {
-    const datoExportado = {};
-
-    // Convertir propiedades con guión bajo a camelCase para Excel
-    Object.keys(item).forEach((key) => {
-      if (key !== "id" && key !== "timestamp" && key !== "detalles") {
-        // Convertir snake_case a CamelCase para nombres de columna
-        const newKey = key
-          .split("_")
-          .map((part, index) =>
-            index === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)
-          )
-          .join("");
-
-        // Formatear valores según su tipo
-        if (typeof item[key] === "number") {
-          datoExportado[newKey] = item[key].toFixed(2);
-        } else if (key === "fecha" && item[key]) {
-          datoExportado[newKey] = new Date(item[key]).toLocaleDateString(
-            "es-AR"
-          );
-        } else {
-          datoExportado[newKey] = item[key];
-        }
-      }
+// Función auxiliar para obtener datos de cuenta corriente para exportación
+async function obtenerDatosCuentaCorriente(tipo) {
+  const coleccion = tipo === "pesos" ? "cuentaCorrientePesos" : "cuentaCorrienteDolares";
+  const clienteId = getVal(tipo === "pesos" ? "clienteCCPesos" : "clienteCCDolares");
+  const fechaDesde = getVal(tipo === "pesos" ? "fechaDesdeCCPesos" : "fechaDesdeCCDolares");
+  const fechaHasta = getVal(tipo === "pesos" ? "fechaHastaCCPesos" : "fechaHastaCCDolares");
+  
+  let query = db.collection(coleccion).orderBy("fecha", "desc");
+  
+  if (clienteId) {
+    query = query.where("clienteId", "==", clienteId);
+  }
+  
+  if (fechaDesde) {
+    const fechaDesdeObj = new Date(fechaDesde);
+    fechaDesdeObj.setHours(0, 0, 0, 0);
+    query = query.where("fecha", ">=", fechaDesdeObj);
+  }
+  
+  if (fechaHasta) {
+    const fechaHastaObj = new Date(fechaHasta);
+    fechaHastaObj.setHours(23, 59, 59, 999);
+    query = query.where("fecha", "<=", fechaHastaObj);
+  }
+  
+  const snapshot = await query.get();
+  const datos = [];
+  
+  snapshot.forEach(doc => {
+    const data = doc.data();
+    const fechaObj = data.fecha.toDate();
+    const fechaValorObj = data.fechaValor.toDate();
+    
+    // Formatear correctamente los valores para exportación
+    const saldoNumerico = data.saldo;
+    // Para la exportación, ajustamos el formato del saldo
+    let saldoFormateado = Math.abs(saldoNumerico).toFixed(2);
+    if (saldoNumerico < 0) {
+      saldoFormateado += "-"; // Signo negativo al final, como en el video
+    }
+    
+    datos.push({
+      fechaOp: fechaObj.toLocaleDateString('es-AR'),
+      fechaValor: fechaValorObj.toLocaleDateString('es-AR'),
+      tipoOperacion: data.tipoOperacion,
+      debito: data.debito || 0,
+      credito: data.credito || 0,
+      saldo: saldoFormateado,
+      moneda: data.moneda,
+      concepto: data.concepto
     });
-
-    return datoExportado;
   });
+  
+  return datos;
 }
 
 // Función para obtener datos del resumen para exportación
@@ -2255,103 +2455,797 @@ function obtenerDatosResumen() {
 
 // Funcionalidad para el menú hamburguesa en dispositivos móviles
 document.addEventListener("DOMContentLoaded", function () {
-  const menuToggle = document.getElementById("menuToggle");
-  const mainNav = document.getElementById("mainNav");
-  const overlay = document.getElementById("overlay");
-  const navButtons = mainNav.querySelectorAll("button");
-
-  // Abrir/cerrar menú al hacer clic en el botón de hamburguesa
-  menuToggle.addEventListener("click", function () {
-    mainNav.classList.toggle("active");
-    overlay.classList.toggle("active");
-    document.body.classList.toggle("menu-open");
-  });
-
-  // Cerrar menú al hacer clic en el overlay
-  overlay.addEventListener("click", function () {
-    mainNav.classList.remove("active");
-    overlay.classList.remove("active");
-    document.body.classList.remove("menu-open");
-  });
-
-  // Cerrar menú al hacer clic en un botón de navegación
-  navButtons.forEach((button) => {
-    button.addEventListener("click", function () {
-      if (window.innerWidth <= 768) {
-        mainNav.classList.remove("active");
-        overlay.classList.remove("active");
-        document.body.classList.remove("menu-open");
-      }
-    });
-  });
-
-  // Ajustar menú si cambia el tamaño de la ventana
-  window.addEventListener("resize", function () {
-    if (window.innerWidth > 768) {
-      mainNav.classList.remove("active");
-      overlay.classList.remove("active");
-      document.body.classList.remove("menu-open");
-    }
-  });
-});
-
-// Funcionalidad para el menú hamburguesa móvil
-document.addEventListener("DOMContentLoaded", function () {
-  const menuToggle = document.getElementById("menuToggle");
-  const mainNav = document.getElementById("mainNav");
-  const overlay = document.getElementById("overlay");
-
-  if (menuToggle && mainNav && overlay) {
-    menuToggle.addEventListener("click", function () {
-      mainNav.classList.toggle("active");
-      overlay.classList.toggle("active");
-      document.body.classList.toggle("no-scroll");
-    });
-
-    overlay.addEventListener("click", function () {
-      mainNav.classList.remove("active");
-      overlay.classList.remove("active");
-      document.body.classList.remove("no-scroll");
-    });
-
-    // Cerrar menú cuando se hace clic en una opción del menú
-    const navButtons = mainNav.querySelectorAll("button");
-    navButtons.forEach((button) => {
-      button.addEventListener("click", function () {
-        mainNav.classList.remove("active");
-        overlay.classList.remove("active");
-        document.body.classList.remove("no-scroll");
-      });
-    });
-
-    // Ajustar menú en cambio de tamaño de ventana
-    window.addEventListener("resize", function () {
-      if (window.innerWidth > 768 && mainNav.classList.contains("active")) {
-        mainNav.classList.remove("active");
-        overlay.classList.remove("active");
-        document.body.classList.remove("no-scroll");
-      }
-    });
-  }
-});
-
-// Funcionalidad para el menú hamburguesa
-document.addEventListener("DOMContentLoaded", function () {
   const menuToggle = document.querySelector(".menu-toggle");
   const mainNav = document.getElementById("mainNav");
   const overlay = document.getElementById("overlay");
-
+  
   if (menuToggle && mainNav && overlay) {
+    const navButtons = mainNav.querySelectorAll("button");
+    
+    // Abrir/cerrar menú al hacer clic en el botón de hamburguesa
     menuToggle.addEventListener("click", function () {
       mainNav.classList.toggle("active");
       overlay.classList.toggle("active");
+      menuToggle.classList.toggle("active");
       document.body.classList.toggle("no-scroll");
     });
-
+    
+    // Cerrar menú al hacer clic en el overlay
     overlay.addEventListener("click", function () {
       mainNav.classList.remove("active");
       overlay.classList.remove("active");
+      menuToggle.classList.remove("active");
       document.body.classList.remove("no-scroll");
+    });
+    
+    // Cerrar menú al hacer clic en un botón de navegación
+    navButtons.forEach((button) => {
+      button.addEventListener("click", function () {
+        if (window.innerWidth <= 768) {
+          mainNav.classList.remove("active");
+          overlay.classList.remove("active");
+          menuToggle.classList.remove("active");
+          document.body.classList.remove("no-scroll");
+        }
+      });
+    });
+    
+    // Ajustar menú si cambia el tamaño de la ventana
+    window.addEventListener("resize", function () {
+      if (window.innerWidth > 768) {
+        mainNav.classList.remove("active");
+        overlay.classList.remove("active");
+        menuToggle.classList.remove("active");
+        document.body.classList.remove("no-scroll");
+      }
     });
   }
 });
+
+// ================== CUENTA CORRIENTE ==================
+// Inicialización de formularios de cuenta corriente
+function inicializarFormulariosCuentaCorriente() {
+  // Formulario para movimientos en pesos
+  const formMovimientoPesos = document.getElementById("formMovimientoPesos");
+  formMovimientoPesos.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const clienteId = getVal("clienteMovimientoPesos");
+      const fecha = getVal("fechaMovimientoPesos");
+      const tipoOperacion = getVal("tipoMovimientoPesos");
+      const montoDebito = getVal("montoDebitoPesos") ? parseFloat(getVal("montoDebitoPesos")) : 0;
+      const montoCredito = getVal("montoCreditoPesos") ? parseFloat(getVal("montoCreditoPesos")) : 0;
+      const concepto = getVal("conceptoMovimientoPesos");
+      
+      // Validaciones básicas
+      if (!clienteId) {
+        throw new Error("Debe seleccionar un cliente");
+      }
+      if (!fecha) {
+        throw new Error("Debe ingresar una fecha");
+      }
+      if (!tipoOperacion) {
+        throw new Error("Debe seleccionar un tipo de operación");
+      }
+      if (montoDebito === 0 && montoCredito === 0) {
+        throw new Error("Debe ingresar un monto de débito o crédito");
+      }
+      if (montoDebito > 0 && montoCredito > 0) {
+        throw new Error("Solo puede ingresar un monto de débito o crédito, no ambos");
+      }
+      if (!concepto) {
+        throw new Error("Debe ingresar un concepto");
+      }
+      
+      // Obtener cliente para tener el nombre
+      const clienteDoc = await db.collection("clientes").doc(clienteId).get();
+      if (!clienteDoc.exists) {
+        throw new Error("Cliente no encontrado");
+      }
+      
+      // Calcular saldo actual
+      const movimientos = await db.collection("cuentaCorrientePesos")
+        .where("clienteId", "==", clienteId)
+        .orderBy("fecha", "desc")
+        .limit(1)
+        .get();
+      
+      let saldoAnterior = 0;
+      if (!movimientos.empty) {
+        saldoAnterior = movimientos.docs[0].data().saldo;
+      }
+      
+      // Calcular nuevo saldo - Nota: según el video, los débitos disminuyen el saldo y los créditos lo aumentan
+      let nuevoSaldo = saldoAnterior;
+      if (montoDebito > 0) {
+        nuevoSaldo -= montoDebito; // Débito disminuye el saldo
+      } else if (montoCredito > 0) {
+        nuevoSaldo += montoCredito; // Crédito aumenta el saldo
+      }
+      
+      // Guardar movimiento
+      await db.collection("cuentaCorrientePesos").add({
+        clienteId: clienteId,
+        clienteNombre: clienteDoc.data().nombre,
+        fecha: new Date(fecha),
+        fechaValor: new Date(fecha),  // Misma fecha por defecto
+        tipoOperacion: tipoOperacion,
+        debito: montoDebito,
+        credito: montoCredito,
+        saldo: nuevoSaldo,
+        moneda: "ARS",
+        concepto: concepto,
+        timestamp: new Date()
+      });
+      
+      // Registrar en historial
+      await registrarHistorial(
+        "cuentaCorrientePesos",
+        "crear",
+        clienteId,
+        `Nuevo movimiento de ${tipoOperacion} por ${montoDebito > 0 ? montoDebito : montoCredito} ARS`
+      );
+      
+      // Limpiar formulario y recargar tabla
+      clearForm("formMovimientoPesos");
+      cargarCuentaCorrientePesos();
+      
+      Swal.fire({
+        icon: "success",
+        title: "Éxito",
+        text: "Movimiento registrado correctamente"
+      });
+      
+    } catch (error) {
+      console.error("Error al guardar movimiento:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: error.message
+      });
+    }
+  };
+  
+  // Formulario para movimientos en dólares
+  const formMovimientoDolares = document.getElementById("formMovimientoDolares");
+  formMovimientoDolares.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const clienteId = getVal("clienteMovimientoDolares");
+      const fecha = getVal("fechaMovimientoDolares");
+      const tipoOperacion = getVal("tipoMovimientoDolares");
+      const montoDebito = getVal("montoDebitoDolares") ? parseFloat(getVal("montoDebitoDolares")) : 0;
+      const montoCredito = getVal("montoCreditoDolares") ? parseFloat(getVal("montoCreditoDolares")) : 0;
+      const concepto = getVal("conceptoMovimientoDolares");
+      
+      // Validaciones básicas
+      if (!clienteId) {
+        throw new Error("Debe seleccionar un cliente");
+      }
+      if (!fecha) {
+        throw new Error("Debe ingresar una fecha");
+      }
+      if (!tipoOperacion) {
+        throw new Error("Debe seleccionar un tipo de operación");
+      }
+      if (montoDebito === 0 && montoCredito === 0) {
+        throw new Error("Debe ingresar un monto de débito o crédito");
+      }
+      if (montoDebito > 0 && montoCredito > 0) {
+        throw new Error("Solo puede ingresar un monto de débito o crédito, no ambos");
+      }
+      if (!concepto) {
+        throw new Error("Debe ingresar un concepto");
+      }
+      
+      // Obtener cliente para tener el nombre
+      const clienteDoc = await db.collection("clientes").doc(clienteId).get();
+      if (!clienteDoc.exists) {
+        throw new Error("Cliente no encontrado");
+      }
+      
+      // Calcular saldo actual
+      const movimientos = await db.collection("cuentaCorrienteDolares")
+        .where("clienteId", "==", clienteId)
+        .orderBy("fecha", "desc")
+        .limit(1)
+        .get();
+      
+      let saldoAnterior = 0;
+      if (!movimientos.empty) {
+        saldoAnterior = movimientos.docs[0].data().saldo;
+      }
+      
+      // Calcular nuevo saldo - Nota: según el video, los débitos disminuyen el saldo y los créditos lo aumentan
+      let nuevoSaldo = saldoAnterior;
+      if (montoDebito > 0) {
+        nuevoSaldo -= montoDebito; // Débito disminuye el saldo
+      } else if (montoCredito > 0) {
+        nuevoSaldo += montoCredito; // Crédito aumenta el saldo
+      }
+      
+      // Guardar movimiento
+      await db.collection("cuentaCorrienteDolares").add({
+        clienteId: clienteId,
+        clienteNombre: clienteDoc.data().nombre,
+        fecha: new Date(fecha),
+        fechaValor: new Date(fecha),  // Misma fecha por defecto
+        tipoOperacion: tipoOperacion,
+        debito: montoDebito,
+        credito: montoCredito,
+        saldo: nuevoSaldo,
+        moneda: "USD",
+        concepto: concepto,
+        timestamp: new Date()
+      });
+      
+      // Registrar en historial
+      await registrarHistorial(
+        "cuentaCorrienteDolares",
+        "crear",
+        clienteId,
+        `Nuevo movimiento de ${tipoOperacion} por ${montoDebito > 0 ? montoDebito : montoCredito} USD`
+      );
+      
+      // Limpiar formulario y recargar tabla
+      clearForm("formMovimientoDolares");
+      cargarCuentaCorrienteDolares();
+      
+      Swal.fire({
+        icon: "success",
+        title: "Éxito",
+        text: "Movimiento registrado correctamente"
+      });
+      
+    } catch (error) {
+      console.error("Error al guardar movimiento:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: error.message
+      });
+    }
+  };
+  
+  // Configurar filtros para cuentas corrientes
+  document.getElementById("btnFiltrarCCPesos")?.addEventListener("click", () => {
+    const filtros = {
+      clienteId: getVal("clienteCCPesos"),
+      fechaDesde: getVal("fechaDesdeCCPesos"),
+      fechaHasta: getVal("fechaHastaCCPesos")
+    };
+    cargarCuentaCorrientePesos(filtros);
+  });
+  
+  document.getElementById("btnFiltrarCCDolares")?.addEventListener("click", () => {
+    const filtros = {
+      clienteId: getVal("clienteCCDolares"),
+      fechaDesde: getVal("fechaDesdeCCDolares"),
+      fechaHasta: getVal("fechaHastaCCDolares")
+    };
+    cargarCuentaCorrienteDolares(filtros);
+  });
+}
+
+// Función para cargar los movimientos de cuenta corriente en pesos
+async function cargarCuentaCorrientePesos(filtros = {}) {
+  try {
+    document.getElementById("loader").classList.add("active");
+    const tbody = document.getElementById("tablaCuentaCorrientePesos");
+    tbody.innerHTML = "";
+    
+    // Construir consulta base
+    let query = db.collection("cuentaCorrientePesos").orderBy("fecha", "desc");
+    
+    // Aplicar filtros
+    if (filtros.clienteId) {
+      query = query.where("clienteId", "==", filtros.clienteId);
+    } else if (document.getElementById("clienteCCPesos").value) {
+      query = query.where("clienteId", "==", document.getElementById("clienteCCPesos").value);
+    }
+    
+    if (filtros.fechaDesde || document.getElementById("fechaDesdeCCPesos").value) {
+      const fechaDesde = new Date(filtros.fechaDesde || document.getElementById("fechaDesdeCCPesos").value);
+      fechaDesde.setHours(0, 0, 0, 0);
+      query = query.where("fecha", ">=", fechaDesde);
+    }
+    
+    if (filtros.fechaHasta || document.getElementById("fechaHastaCCPesos").value) {
+      const fechaHasta = new Date(filtros.fechaHasta || document.getElementById("fechaHastaCCPesos").value);
+      fechaHasta.setHours(23, 59, 59, 999);
+      query = query.where("fecha", "<=", fechaHasta);
+    }
+    
+    // Ejecutar consulta
+    const snapshot = await query.get();
+    
+    if (snapshot.empty) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">No hay movimientos registrados</td></tr>';
+      document.getElementById("loader").classList.remove("active");
+      return;
+    }
+    
+    // Procesar los datos y renderizar tabla
+    const movimientos = [];
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      
+      // Asegurar que los valores numéricos son realmente números
+      const debito = parseFloat(data.debito || 0);
+      const credito = parseFloat(data.credito || 0);
+      const saldo = parseFloat(data.saldo || 0);
+      
+      movimientos.push({
+        id: doc.id,
+        ...data,
+        debito: debito,
+        credito: credito,
+        saldo: saldo
+      });
+    });
+    
+    renderizarTablaCuentaCorriente(movimientos, tbody, "pesos");
+    document.getElementById("loader").classList.remove("active");
+  } catch (error) {
+    console.error("Error al cargar cuenta corriente en pesos:", error);
+    document.getElementById("loader").classList.remove("active");
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "Error al cargar los datos: " + error.message
+    });
+  }
+}
+
+// Función para cargar los movimientos de cuenta corriente en dólares
+async function cargarCuentaCorrienteDolares(filtros = {}) {
+  try {
+    document.getElementById("loader").classList.add("active");
+    const tbody = document.getElementById("tablaCuentaCorrienteDolares");
+    tbody.innerHTML = "";
+    
+    // Construir consulta base
+    let query = db.collection("cuentaCorrienteDolares").orderBy("fecha", "desc");
+    
+    // Aplicar filtros
+    if (filtros.clienteId) {
+      query = query.where("clienteId", "==", filtros.clienteId);
+    } else if (document.getElementById("clienteCCDolares").value) {
+      query = query.where("clienteId", "==", document.getElementById("clienteCCDolares").value);
+    }
+    
+    if (filtros.fechaDesde || document.getElementById("fechaDesdeCCDolares").value) {
+      const fechaDesde = new Date(filtros.fechaDesde || document.getElementById("fechaDesdeCCDolares").value);
+      fechaDesde.setHours(0, 0, 0, 0);
+      query = query.where("fecha", ">=", fechaDesde);
+    }
+    
+    if (filtros.fechaHasta || document.getElementById("fechaHastaCCDolares").value) {
+      const fechaHasta = new Date(filtros.fechaHasta || document.getElementById("fechaHastaCCDolares").value);
+      fechaHasta.setHours(23, 59, 59, 999);
+      query = query.where("fecha", "<=", fechaHasta);
+    }
+    
+    // Ejecutar consulta
+    const snapshot = await query.get();
+    
+    if (snapshot.empty) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align: center;">No hay movimientos registrados</td></tr>';
+      document.getElementById("loader").classList.remove("active");
+      return;
+    }
+    
+    // Procesar los datos y renderizar tabla
+    const movimientos = [];
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      
+      // Asegurar que los valores numéricos son realmente números
+      const debito = parseFloat(data.debito || 0);
+      const credito = parseFloat(data.credito || 0);
+      const saldo = parseFloat(data.saldo || 0);
+      
+      movimientos.push({
+        id: doc.id,
+        ...data,
+        debito: debito,
+        credito: credito,
+        saldo: saldo
+      });
+    });
+    
+    renderizarTablaCuentaCorriente(movimientos, tbody, "dolares");
+    document.getElementById("loader").classList.remove("active");
+  } catch (error) {
+    console.error("Error al cargar cuenta corriente en dólares:", error);
+    document.getElementById("loader").classList.remove("active");
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "Error al cargar los datos: " + error.message
+    });
+  }
+}
+
+// Función para renderizar movimientos en la tabla de cuenta corriente
+function renderizarTablaCuentaCorriente(movimientos, tbody, tipo) {
+  if (movimientos.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center;">No hay movimientos registrados</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = "";
+  const moneda = tipo === "pesos" ? "$" : "USD";
+  let saldoTotal = 0;
+
+  movimientos.forEach((m) => {
+    // Convertir fechas de firebase a objetos Date
+    const fechaOp = m.fecha?.toDate() || new Date();
+    const fechaVal = m.fechaValor?.toDate() || new Date();
+    
+    // Asegurar que los valores numéricos sean números
+    const debito = parseFloat(m.debito || 0);
+    const credito = parseFloat(m.credito || 0);
+    const saldo = parseFloat(m.saldo || 0);
+    
+    // Actualizar el saldo total con el valor más reciente
+    if (!isNaN(saldo)) {
+      saldoTotal = saldo;
+    }
+
+    // Determinar si el saldo es negativo para aplicar clase CSS
+    const esNegativo = saldo < 0 ? "negativo" : "";
+
+    tbody.innerHTML += `
+      <tr>
+        <td>${formatearFecha(fechaOp)}</td>
+        <td>${formatearFecha(fechaVal)}</td>
+        <td>${m.tipoOperacion || ""}</td>
+        <td class="monto">${!isNaN(debito) && debito > 0 ? formatearMonto(debito) : ""}</td>
+        <td class="monto">${!isNaN(credito) && credito > 0 ? formatearMonto(credito) : ""}</td>
+        <td class="monto ${esNegativo}">${formatearMontoConSigno(saldo)}</td>
+        <td>${m.moneda || moneda}</td>
+        <td>${m.concepto || ""}</td>
+        <td>
+          <button class="btn-editar" onclick="editarMovimientoCuentaCorriente('${m.id}', '${tipo}')">Editar</button>
+          <button onclick="eliminarMovimientoCuentaCorriente('${m.id}', '${tipo}')">Eliminar</button>
+        </td>
+      </tr>
+    `;
+  });
+
+  // Actualizar el saldo total mostrado en el pie de tabla
+  document.getElementById(tipo === "pesos" ? "saldoTotalPesos" : "saldoTotalDolares").innerHTML = formatearMontoConSigno(saldoTotal);
+  
+  // Aplicar clase para saldos negativos
+  if (saldoTotal < 0) {
+    document.getElementById(tipo === "pesos" ? "saldoTotalPesos" : "saldoTotalDolares").classList.add("negativo");
+  } else {
+    document.getElementById(tipo === "pesos" ? "saldoTotalPesos" : "saldoTotalDolares").classList.remove("negativo");
+  }
+}
+
+// Función para formatear fechas
+function formatearFecha(fecha) {
+  if (!fecha) return "-";
+  
+  try {
+    // Si ya es un objeto Date
+    if (fecha instanceof Date) {
+      return fecha.toLocaleDateString('es-AR');
+    }
+    
+    // Si es un objeto Timestamp de Firebase
+    if (typeof fecha.toDate === 'function') {
+      return fecha.toDate().toLocaleDateString('es-AR');
+    }
+    
+    // Si es una cadena, intentar convertir a Date
+    return new Date(fecha).toLocaleDateString('es-AR');
+  } catch (error) {
+    console.error("Error al formatear fecha:", error);
+    return "-";
+  }
+}
+
+// Función para formatear montos
+function formatearMonto(monto) {
+  // Verificar si el valor es un número válido
+  if (monto === null || monto === undefined || isNaN(monto)) {
+    return "0,00";
+  }
+  
+  return monto.toLocaleString('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+// Función para formatear montos con signo
+function formatearMontoConSigno(monto) {
+  // Verificar si el valor es un número válido
+  if (monto === null || monto === undefined || isNaN(monto)) {
+    return "0,00";
+  }
+  
+  const abs = Math.abs(monto);
+  const formateado = abs.toLocaleString('es-AR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+  
+  // Colocar el signo negativo al final del número, como se muestra en el video
+  return monto < 0 ? formateado + '-' : formateado;
+}
+
+// Función para editar un movimiento de cuenta corriente
+async function editarMovimientoCuentaCorriente(id, tipo) {
+  try {
+    const coleccion = tipo === "pesos" ? "cuentaCorrientePesos" : "cuentaCorrienteDolares";
+    const doc = await db.collection(coleccion).doc(id).get();
+    
+    if (!doc.exists) {
+      Swal.fire("Error", "Movimiento no encontrado", "error");
+      return;
+    }
+    
+    const movimiento = doc.data();
+    const moneda = tipo === "pesos" ? "ARS" : "USD";
+    
+    // Formateo de fecha para el input date
+    const fecha = movimiento.fecha.toDate().toISOString().split('T')[0];
+    
+    const { value: formValues } = await Swal.fire({
+      title: `Editar Movimiento en ${tipo === "pesos" ? "Pesos" : "Dólares"}`,
+      html: `
+        <div class="swal-form-row">
+          <label>Fecha:</label>
+          <input id="swal-fecha" class="swal2-input" type="date" value="${fecha}" required>
+        </div>
+        <div class="swal-form-row">
+          <label>Tipo de Operación:</label>
+          <select id="swal-tipo" class="swal2-input">
+            <option value="NOTA DE DEBITO" ${movimiento.tipoOperacion === "NOTA DE DEBITO" ? "selected" : ""}>NOTA DE DEBITO</option>
+            <option value="ARREGLO CREDITO" ${movimiento.tipoOperacion === "ARREGLO CREDITO" ? "selected" : ""}>ARREGLO CREDITO</option>
+          </select>
+        </div>
+        <div class="swal-form-row">
+          <label>Monto Débito (${moneda}):</label>
+          <input id="swal-debito" class="swal2-input" type="number" step="any" value="${movimiento.debito || 0}">
+        </div>
+        <div class="swal-form-row">
+          <label>Monto Crédito (${moneda}):</label>
+          <input id="swal-credito" class="swal2-input" type="number" step="any" value="${movimiento.credito || 0}">
+        </div>
+        <div class="swal-form-row">
+          <label>Concepto:</label>
+          <input id="swal-concepto" class="swal2-input" value="${movimiento.concepto}">
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: "Guardar",
+      cancelButtonText: "Cancelar",
+      customClass: {
+        container: 'swal-wider'
+      },
+      preConfirm: () => {
+        const nuevaFecha = document.getElementById("swal-fecha").value;
+        const nuevoTipo = document.getElementById("swal-tipo").value;
+        const nuevoDebito = parseFloat(document.getElementById("swal-debito").value) || 0;
+        const nuevoCredito = parseFloat(document.getElementById("swal-credito").value) || 0;
+        const nuevoConcepto = document.getElementById("swal-concepto").value;
+        
+        // Validaciones
+        if (!nuevaFecha) {
+          Swal.showValidationMessage("La fecha es obligatoria");
+          return false;
+        }
+        if (nuevoDebito === 0 && nuevoCredito === 0) {
+          Swal.showValidationMessage("Debe ingresar un monto de débito o crédito");
+          return false;
+        }
+        if (nuevoDebito > 0 && nuevoCredito > 0) {
+          Swal.showValidationMessage("Solo puede ingresar un monto de débito o crédito, no ambos");
+          return false;
+        }
+        if (!nuevoConcepto) {
+          Swal.showValidationMessage("El concepto es obligatorio");
+          return false;
+        }
+        
+        return {
+          fecha: nuevaFecha,
+          tipoOperacion: nuevoTipo,
+          debito: nuevoDebito,
+          credito: nuevoCredito,
+          concepto: nuevoConcepto
+        };
+      },
+    });
+    
+    if (formValues) {
+      // Actualizamos el movimiento con los nuevos valores
+      const nuevaFechaObj = new Date(formValues.fecha);
+      
+      // Guardamos los valores originales para calcular el ajuste de saldo
+      const debitoOriginal = movimiento.debito || 0;
+      const creditoOriginal = movimiento.credito || 0;
+      
+      // Cambio neto en el saldo debido a la edición
+      let ajusteSaldo = 0;
+      
+      // Si era un débito y sigue siendo un débito, calculamos la diferencia
+      if (debitoOriginal > 0 && formValues.debito > 0) {
+        ajusteSaldo = debitoOriginal - formValues.debito;
+      }
+      // Si era un crédito y sigue siendo un crédito, calculamos la diferencia
+      else if (creditoOriginal > 0 && formValues.credito > 0) {
+        ajusteSaldo = formValues.credito - creditoOriginal;
+      }
+      // Si cambió de débito a crédito
+      else if (debitoOriginal > 0 && formValues.credito > 0) {
+        ajusteSaldo = debitoOriginal + formValues.credito;
+      }
+      // Si cambió de crédito a débito
+      else if (creditoOriginal > 0 && formValues.debito > 0) {
+        ajusteSaldo = -(creditoOriginal + formValues.debito);
+      }
+      
+      // Actualizamos el movimiento con el nuevo saldo
+      const nuevoSaldo = movimiento.saldo + ajusteSaldo;
+      
+      await db.collection(coleccion).doc(id).update({
+        fecha: nuevaFechaObj,
+        fechaValor: nuevaFechaObj, // Actualizamos también la fecha de valor
+        tipoOperacion: formValues.tipoOperacion,
+        debito: formValues.debito,
+        credito: formValues.credito,
+        concepto: formValues.concepto,
+        saldo: nuevoSaldo
+      });
+      
+      // Registrar en historial
+      await registrarHistorial(
+        coleccion,
+        "editar",
+        id,
+        `Modificación de movimiento de ${formValues.tipoOperacion} por ${formValues.debito > 0 ? formValues.debito : formValues.credito} ${moneda}`
+      );
+      
+      // Recargar la tabla
+      if (tipo === "pesos") {
+        cargarCuentaCorrientePesos();
+      } else {
+        cargarCuentaCorrienteDolares();
+      }
+      
+      Swal.fire({
+        icon: "success",
+        title: "Éxito",
+        text: "Movimiento actualizado correctamente"
+      });
+    }
+    
+  } catch (error) {
+    console.error("Error al editar movimiento:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "No se pudo editar el movimiento: " + error.message
+    });
+  }
+}
+
+// Función para eliminar un movimiento de cuenta corriente
+async function eliminarMovimientoCuentaCorriente(id, tipo) {
+  try {
+    // Confirmar eliminación
+    const result = await Swal.fire({
+      title: "¿Está seguro?",
+      text: "Esta acción no se puede deshacer",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar"
+    });
+    
+    if (!result.isConfirmed) {
+      return;
+    }
+    
+    const coleccion = tipo === "pesos" ? "cuentaCorrientePesos" : "cuentaCorrienteDolares";
+    
+    // Obtener el movimiento antes de eliminarlo
+    const doc = await db.collection(coleccion).doc(id).get();
+    if (!doc.exists) {
+      throw new Error("Movimiento no encontrado");
+    }
+    
+    const movimiento = doc.data();
+    
+    // Guardamos la información para el historial
+    const tipoOperacion = movimiento.tipoOperacion;
+    const monto = movimiento.debito > 0 ? movimiento.debito : movimiento.credito;
+    
+    // Obtener el cliente para posibles actualizaciones
+    const clienteId = movimiento.clienteId;
+    
+    // Determinamos el impacto del movimiento en el saldo
+    // Si se elimina un débito, el saldo aumenta en el monto del débito
+    // Si se elimina un crédito, el saldo disminuye en el monto del crédito
+    
+    // Eliminamos el movimiento
+    await db.collection(coleccion).doc(id).delete();
+    
+    // Registrar en historial
+    await registrarHistorial(
+      coleccion,
+      "eliminar",
+      id,
+      `Eliminación de movimiento de ${tipoOperacion} por ${monto} ${tipo === "pesos" ? "ARS" : "USD"}`
+    );
+    
+    // Recargar la tabla - los saldos se recalcularán al cargar los datos
+    if (tipo === "pesos") {
+      cargarCuentaCorrientePesos();
+    } else {
+      cargarCuentaCorrienteDolares();
+    }
+    
+    Swal.fire({
+      icon: "success",
+      title: "Éxito",
+      text: "Movimiento eliminado correctamente"
+    });
+    
+  } catch (error) {
+    console.error("Error al eliminar movimiento:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "No se pudo eliminar el movimiento: " + error.message
+    });
+  }
+}
+
+// Función para ver detalles de transferencia
+async function verDetallesTransferencia(id) {
+  try {
+    const doc = await db.collection("transferencias").doc(id).get();
+    if (!doc.exists) {
+      Swal.fire("Error", "Registro no encontrado", "error");
+      return;
+    }
+
+    const t = doc.data();
+    const fecha = t.fecha ? new Date(t.fecha).toLocaleDateString("es-AR") : "-";
+    const estado = t.recepcionada || "Pendiente";
+
+    Swal.fire({
+      title: `Transferencia - ${t.cliente}`,
+      html: `
+        <div style="text-align: left; margin: 15px 0;">
+          <p><strong>Fecha:</strong> ${fecha}</p>
+          <p><strong>Cliente:</strong> ${t.cliente}</p>
+          <p><strong>Monto:</strong> $${t.monto.toLocaleString("es-AR")}</p>
+          <p><strong>Cambio USD:</strong> $${t.cambio_usd.toLocaleString("es-AR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}</p>
+          <p><strong>TC USD Salta:</strong> ${t.tc_usd_salta.toLocaleString("es-AR")}</p>
+          <p><strong>Comisión:</strong> $${t.comision.toLocaleString("es-AR")}</p>
+          <p><strong>Diferencia TC:</strong> $${t.dif_tc.toLocaleString("es-AR")}</p>
+          <p><strong>Estado:</strong> ${estado}</p>
+          <p><strong>Observaciones:</strong> ${t.observaciones || "-"}</p>
+        </div>
+      `,
+      width: "500px",
+    });
+  } catch (error) {
+    console.error("Error al obtener detalles:", error);
+    Swal.fire("Error", "No se pudieron cargar los detalles", "error");
+  }
+}
