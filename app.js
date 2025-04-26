@@ -2179,11 +2179,19 @@ function exportarAPdf(datos, columnas, nombreArchivo) {
   doc.setFontSize(11);
   doc.text(`Generado: ${new Date().toLocaleString()}`, 14, 30);
 
+  // Preparar encabezados
+  const headers = columnas.map(col => col.header);
+  
+  // Preparar filas de datos extrayendo los valores usando dataKey
+  const rows = datos.map(item => 
+    columnas.map(col => item[col.dataKey] || "")
+  );
+
   // Crear tabla con los datos
   doc.autoTable({
     startY: 35,
-    head: [columnas],
-    body: datos.map((item) => columnas.map((col) => item[col] || "")),
+    head: [headers],
+    body: rows,
     theme: "striped",
     headStyles: {
       fillColor: [26, 61, 124],
@@ -2194,6 +2202,46 @@ function exportarAPdf(datos, columnas, nombreArchivo) {
 
   // Guardar el PDF
   doc.save(`${nombreArchivo}.pdf`);
+}
+
+// Función para transformar datos antes de exportarlos
+function transformarDatosParaExportar(datos) {
+  if (!datos || !Array.isArray(datos)) return [];
+  
+  return datos.map(item => {
+    const nuevoItem = {};
+    
+    // Recorrer todas las propiedades del objeto
+    for (const key in item) {
+      // Si es una fecha y tiene método toDate() (Firebase Timestamp)
+      if (item[key] && item[key].toDate && typeof item[key].toDate === 'function') {
+        nuevoItem[key] = formatearFecha(item[key].toDate());
+      }
+      // Si es un número, formatearlo correctamente
+      else if (typeof item[key] === 'number') {
+        // Si parece un valor monetario (basado en el nombre de la propiedad)
+        if (key.toLowerCase().includes('monto') || 
+            key.toLowerCase().includes('saldo') || 
+            key.toLowerCase().includes('debito') || 
+            key.toLowerCase().includes('credito') || 
+            key.toLowerCase().includes('comision')) {
+          nuevoItem[key] = formatearMonto(item[key]);
+        } else {
+          nuevoItem[key] = item[key];
+        }
+      }
+      // Si es undefined o null, convertir a cadena vacía
+      else if (item[key] === undefined || item[key] === null) {
+        nuevoItem[key] = '';
+      } 
+      // En cualquier otro caso, usar el valor tal cual
+      else {
+        nuevoItem[key] = item[key];
+      }
+    }
+    
+    return nuevoItem;
+  });
 }
 
 // Función principal de exportación de datos
