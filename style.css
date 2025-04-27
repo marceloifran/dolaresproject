@@ -912,7 +912,7 @@ tr:hover {
     justify-content: flex-start;
   }
   
-  body.menu-open {
+  body.no-scroll {
     overflow: hidden;
   }
   

@@ -1207,50 +1207,5 @@
     <!-- App Scripts -->
     <script src="firebase-config.js"></script>
     <script src="app.js"></script>
-
-    <!-- Script para el menú móvil -->
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        // Elementos del menú
-        const menuToggle = document.querySelector(".menu-toggle");
-        const mainNav = document.getElementById("mainNav");
-        const overlay = document.getElementById("overlay");
-        const navButtons = mainNav.querySelectorAll("button");
-
-        // Función para abrir/cerrar el menú
-        menuToggle.addEventListener("click", function () {
-          mainNav.classList.toggle("active");
-          overlay.classList.toggle("active");
-          menuToggle.classList.toggle("active");
-        });
-
-        // Cerrar el menú cuando se hace clic en el overlay
-        overlay.addEventListener("click", function () {
-          mainNav.classList.remove("active");
-          overlay.classList.remove("active");
-          menuToggle.classList.remove("active");
-        });
-
-        // Cerrar el menú al hacer clic en un botón de navegación (en móviles)
-        navButtons.forEach((button) => {
-          button.addEventListener("click", function () {
-            if (window.innerWidth <= 768) {
-              mainNav.classList.remove("active");
-              overlay.classList.remove("active");
-              menuToggle.classList.remove("active");
-            }
-          });
-        });
-
-        // Ajustar menú al cambiar el tamaño de la ventana
-        window.addEventListener("resize", function () {
-          if (window.innerWidth > 768) {
-            mainNav.classList.remove("active");
-            overlay.classList.remove("active");
-            menuToggle.classList.remove("active");
-          }
-        });
-      });
-    </script>
   </body>
 </html>
