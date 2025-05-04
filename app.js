@@ -26,6 +26,106 @@ const datosCompletos = {
   historial: [],
 };
 
+/**
+ * Actualiza y renderiza una tabla paginada
+ * @param {string} modulo - Nombre del módulo cuya tabla se va a paginar
+ */
+function actualizarTablaPaginada(modulo) {
+  // Si no hay datos para este módulo, salir
+  if (!datosCompletos[modulo] || datosCompletos[modulo].length === 0) {
+    document.getElementById("loader")?.classList.remove("active");
+    return;
+  }
+
+  // Obtener parámetros de paginación actual
+  const estado = estadoPaginacion[modulo];
+  const inicio = (estado.pagina - 1) * estado.registrosPorPagina;
+  const fin = inicio + estado.registrosPorPagina;
+
+  // Obtener los datos para la página actual
+  const datosPagina = datosCompletos[modulo].slice(inicio, fin);
+
+  // Renderizar la tabla según el módulo
+  switch (modulo) {
+    case "transferencias":
+      renderizarTablaTransferencias(datosPagina);
+      break;
+    case "cables":
+      renderizarTablaCables(datosPagina);
+      break;
+    case "cash_to_cash":
+      renderizarTablaCash(datosPagina);
+      break;
+    case "ingreso_pesos":
+      renderizarTablaIngresoPesos(datosPagina);
+      break;
+    case "descuento_cheque":
+      renderizarTablaDescuentoCheque(datosPagina);
+      break;
+    case "historial":
+      renderizarTablaHistorial(datosPagina);
+      break;
+    default:
+      console.warn(`No hay función de renderizado para el módulo: ${modulo}`);
+  }
+
+  // Actualizar información de paginación en la UI
+  const paginaActualElement = document.getElementById(`paginaActual${modulo.charAt(0).toUpperCase() + modulo.slice(1)}`);
+  if (paginaActualElement) {
+    paginaActualElement.textContent = `Página ${estado.pagina}`;
+  }
+
+  // Habilitar/deshabilitar botones de paginación
+  const btnAnterior = document.getElementById(`btnAnterior${modulo.charAt(0).toUpperCase() + modulo.slice(1)}`);
+  const btnSiguiente = document.getElementById(`btnSiguiente${modulo.charAt(0).toUpperCase() + modulo.slice(1)}`);
+
+  if (btnAnterior) {
+    btnAnterior.disabled = estado.pagina <= 1;
+  }
+  if (btnSiguiente) {
+    btnSiguiente.disabled = estado.pagina >= Math.ceil(estado.total / estado.registrosPorPagina);
+  }
+
+  // Quitar spinner de carga
+  document.getElementById("loader")?.classList.remove("active");
+}
+
+/**
+ * Cambia a la página anterior de la tabla paginada
+ * @param {string} modulo - Nombre del módulo
+ */
+function paginaAnterior(modulo) {
+  if (estadoPaginacion[modulo].pagina > 1) {
+    estadoPaginacion[modulo].pagina--;
+    actualizarTablaPaginada(modulo);
+  }
+}
+
+/**
+ * Cambia a la página siguiente de la tabla paginada
+ * @param {string} modulo - Nombre del módulo
+ */
+function paginaSiguiente(modulo) {
+  const totalPaginas = Math.ceil(
+    estadoPaginacion[modulo].total / estadoPaginacion[modulo].registrosPorPagina
+  );
+  if (estadoPaginacion[modulo].pagina < totalPaginas) {
+    estadoPaginacion[modulo].pagina++;
+    actualizarTablaPaginada(modulo);
+  }
+}
+
+/**
+ * Cambia la cantidad de registros mostrados por página
+ * @param {string} modulo - Nombre del módulo
+ * @param {number} cantidad - Cantidad de registros por página
+ */
+function cambiarRegistrosPorPagina(modulo, cantidad) {
+  estadoPaginacion[modulo].registrosPorPagina = parseInt(cantidad);
+  estadoPaginacion[modulo].pagina = 1; // Volver a la primera página
+  actualizarTablaPaginada(modulo);
+}
+
 // Mostrar/ocultar módulos
 function mostrarModulo(modulo) {
   // Ocultar todos los módulos
@@ -868,34 +968,68 @@ const setupTransferenciasCalculos = () => {
   const montoInput = document.getElementById("montoTrans");
   const tcBsAsInput = document.getElementById("tcUsdBsAsTrans");
   const tcSaltaInput = document.getElementById("tcUsdSaltaTrans");
-  const comisionInput = document.getElementById("comisionArsTrans");
+  const comisionUsdInput = document.getElementById("comisionUsdTrans");
 
   // Campos para mostrar resultados
   const difTcResult = document.getElementById("difTcResult");
   const montoNetoResult = document.getElementById("montoNetoResult");
   const cambioUsdResult = document.getElementById("cambioUsdResult");
+  const comisionArsResult = document.getElementById("comisionArsResult");
 
   // Campos ocultos para guardar valores calculados
   const difTcTrans = document.getElementById("difTcTrans");
   const montoNetoTrans = document.getElementById("montoNetoTrans");
   const cambioUsdTrans = document.getElementById("cambioUsdTrans");
+  const comisionArsTrans = document.getElementById("comisionArsTrans");
+
+  // Función para formatear entradas con decimales
+  const formatearDecimal = (input) => {
+    if (!input.value) return;
+    
+    // Primero, reemplazar comas por puntos
+    let valor = input.value.replace(/,/g, '.');
+    
+    // Limitar a solo números y un punto decimal
+    valor = valor.replace(/[^\d.]/g, '');
+    
+    // Asegurar que solo hay un punto decimal
+    const partes = valor.split('.');
+    if (partes.length > 2) {
+      valor = partes[0] + '.' + partes.slice(1).join('');
+    }
+    
+    // Limitar a dos decimales
+    if (partes.length > 1 && partes[1].length > 2) {
+      valor = partes[0] + '.' + partes[1].substring(0, 2);
+    }
+    
+    input.value = valor;
+  };
+
+  // Agregar evento de formateo a cada input
+  [montoInput, tcBsAsInput, tcSaltaInput, comisionUsdInput].forEach(input => {
+    input.addEventListener("input", () => formatearDecimal(input));
+  });
 
   // Función para realizar los cálculos
   const calcularValores = () => {
-    // Obtener valores actuales
-    const monto = parseFloat(montoInput.value) || 0;
-    const tcBsAs = parseFloat(tcBsAsInput.value) || 0;
-    const tcSalta = parseFloat(tcSaltaInput.value) || 0;
-    const comision = parseFloat(comisionInput.value) || 0;
+    // Obtener valores actuales y convertir a números
+    const monto = parseFloat(montoInput.value.replace(/,/g, '.')) || 0;
+    const tcBsAs = parseFloat(tcBsAsInput.value.replace(/,/g, '.')) || 0;
+    const tcSalta = parseFloat(tcSaltaInput.value.replace(/,/g, '.')) || 0;
+    const comisionUsd = parseFloat(comisionUsdInput.value.replace(/,/g, '.')) || 0;
 
     // Calcular valores
     // 1. Diferencia de tipo de cambio
     const difTc = tcSalta - tcBsAs;
 
-    // 2. Monto neto (después de comisión)
-    const montoNeto = monto - comision;
+    // 2. Comisión en ARS (basado en la comisión USD y el TC aplicado)
+    const comisionArs = tcSalta > 0 ? comisionUsd * tcSalta : 0;
 
-    // 3. Cambio a USD
+    // 3. Monto neto (después de comisión)
+    const montoNeto = monto - comisionArs;
+
+    // 4. Cambio a USD
     const cambioUsd = tcSalta > 0 ? montoNeto / tcSalta : 0;
 
     // Mostrar en la interfaz
@@ -905,21 +1039,145 @@ const setupTransferenciasCalculos = () => {
       currency: "ARS",
     });
     cambioUsdResult.textContent = cambioUsd.toFixed(2);
+    comisionArsResult.textContent = comisionArs.toLocaleString("es-AR", {
+      style: "currency",
+      currency: "ARS",
+    });
 
     // Guardar en campos ocultos para envío
     difTcTrans.value = difTc;
     montoNetoTrans.value = montoNeto;
     cambioUsdTrans.value = cambioUsd;
+    comisionArsTrans.value = comisionArs;
   };
 
   // Configurar eventos para actualizar cálculos cuando cambian los valores
-  [montoInput, tcBsAsInput, tcSaltaInput, comisionInput].forEach((input) => {
+  [montoInput, tcBsAsInput, tcSaltaInput, comisionUsdInput].forEach((input) => {
     input.addEventListener("input", calcularValores);
   });
 };
 
 // Inicializar cálculos automáticos cuando se carga la página
 setupTransferenciasCalculos();
+
+// Función para generar número de transacción automático
+async function generarNumeroTransaccion(coleccion) {
+  try {
+    // Obtener el último número de transacción
+    const docRef = db.collection("configuracion").doc("numeracion");
+    const doc = await docRef.get();
+    
+    let ultimoNumero = 0;
+    
+    if (doc.exists) {
+      const datos = doc.data();
+      ultimoNumero = datos[coleccion] || 0;
+    }
+    
+    // Incrementar número
+    const nuevoNumero = ultimoNumero + 1;
+    
+    // Actualizar en Firestore (usar transaction para evitar condiciones de carrera)
+    await db.runTransaction(async (transaction) => {
+      // Volver a leer el documento en la transacción
+      const docRef = db.collection("configuracion").doc("numeracion");
+      const doc = await transaction.get(docRef);
+      
+      // Actualizar o crear el documento
+      if (doc.exists) {
+        transaction.update(docRef, {
+          [coleccion]: nuevoNumero
+        });
+      } else {
+        transaction.set(docRef, {
+          [coleccion]: nuevoNumero
+        });
+      }
+    });
+    
+    // Formatear número (ejemplo: TRF-00001)
+    const prefijo = obtenerPrefijo(coleccion);
+    const numeroFormateado = `${prefijo}-${nuevoNumero.toString().padStart(5, '0')}`;
+    
+    return numeroFormateado;
+  } catch (error) {
+    console.error("Error al generar número de transacción:", error);
+    throw error;
+  }
+}
+
+// Función para obtener prefijo según el tipo de transacción
+function obtenerPrefijo(coleccion) {
+  const prefijos = {
+    transferencias: "TRF",
+    cables: "CBL",
+    cash_to_cash: "CSH",
+    ingreso_pesos: "ING",
+    descuento_cheque: "CHQ"
+  };
+  
+  return prefijos[coleccion] || "TRX";
+}
+
+// Función para agregar movimiento de cuenta corriente
+async function agregarMovimientoCuentaCorriente(datos) {
+  try {
+    const {
+      clienteId, 
+      clienteNombre, 
+      moneda,
+      fecha, 
+      tipoOperacion, 
+      debito, 
+      credito, 
+      concepto
+    } = datos;
+
+    // Verificar el tipo de moneda para determinar la colección
+    const coleccion = moneda === "USD" ? "cuentaCorrienteDolares" : "cuentaCorrientePesos";
+    
+    // Calcular saldo actual
+    const movimientos = await db.collection(coleccion)
+      .where("clienteId", "==", clienteId)
+      .orderBy("fecha", "desc")
+      .limit(1)
+      .get();
+    
+    let saldoAnterior = 0;
+    if (!movimientos.empty) {
+      saldoAnterior = movimientos.docs[0].data().saldo;
+    }
+    
+    // Calcular nuevo saldo
+    let nuevoSaldo = saldoAnterior;
+    if (debito > 0) {
+      nuevoSaldo -= debito; // Débito disminuye el saldo
+    } else if (credito > 0) {
+      nuevoSaldo += credito; // Crédito aumenta el saldo
+    }
+    
+    // Guardar movimiento
+    const fechaObj = new Date(fecha);
+    await db.collection(coleccion).add({
+      clienteId: clienteId,
+      clienteNombre: clienteNombre,
+      fecha: fechaObj,
+      fechaValor: fechaObj,  // Misma fecha por defecto
+      tipoOperacion: tipoOperacion,
+      debito: debito,
+      credito: credito,
+      saldo: nuevoSaldo,
+      moneda: moneda,
+      concepto: concepto,
+      timestamp: new Date()
+    });
+    
+    return true;
+  } catch (error) {
+    console.error("Error al agregar movimiento de cuenta corriente:", error);
+    throw error;
+  }
+}
 
 // Manejo del formulario de transferencias
 formTransferencias.onsubmit = async (e) => {
@@ -934,7 +1192,7 @@ formTransferencias.onsubmit = async (e) => {
       "montoTrans",
       "tcUsdBsAsTrans",
       "tcUsdSaltaTrans",
-      "comisionArsTrans",
+      "comisionUsdTrans",
     ];
 
     for (const campo of campos) {
@@ -948,38 +1206,93 @@ formTransferencias.onsubmit = async (e) => {
       }
     }
 
-    const monto = parseFloat(getVal("montoTrans"));
-    const tcBsAs = parseFloat(getVal("tcUsdBsAsTrans"));
-    const tcSalta = parseFloat(getVal("tcUsdSaltaTrans"));
-    const comision = parseFloat(getVal("comisionArsTrans"));
+    // Convertir valores a números, asegurándose de que las comas se traten correctamente
+    const monto = parseFloat(getVal("montoTrans").replace(/,/g, '.'));
+    const tcBsAs = parseFloat(getVal("tcUsdBsAsTrans").replace(/,/g, '.'));
+    const tcSalta = parseFloat(getVal("tcUsdSaltaTrans").replace(/,/g, '.'));
+    const comisionUsd = parseFloat(getVal("comisionUsdTrans").replace(/,/g, '.'));
 
     // Calcular valores
     const difTc = tcSalta - tcBsAs;
-    const montoNeto = monto - comision;
+    const comisionArs = comisionUsd * tcSalta;
+    const montoNeto = monto - comisionArs;
     const cambioUsd = montoNeto / tcSalta;
+
+    // Obtener tipo de transacción
+    const tipoTransaccion = getVal("tipoTransaccion") || "envio";
+
+    // Obtener el operador para la cuenta corriente
+    const operadorId = getVal("operadorTrans");
+    const clienteId = getVal("clienteTrans");
+    
+    // Obtener número de transacción (ya no existe el campo transaccionTrans)
+    let numeroTransaccion = await generarNumeroTransaccion("transferencias");
 
     // Crear objeto con los datos
     const datosTrans = {
       fecha: getVal("fechaTrans"),
       operador: getVal("operadorTrans"),
+      operador_id: operadorId,
       cliente: getVal("clienteTrans"),
+      cliente_id: clienteId,
       destinatario: getVal("destinatarioTrans"),
       monto: monto,
       tc_usd_bsas: tcBsAs,
       tc_usd_salta: tcSalta,
-      comision: comision,          // Nombre del campo para aplicar a todos los cálculos
-      comision_ars: comision,      // Mantener compatibilidad con código existente
+      comision: comisionArs,         // Se sigue usando para compatibilidad
+      comision_ars: comisionArs,     // Comisión en ARS calculada
+      comision_usd: comisionUsd,     // Comisión en USD ingresada
       cambio_usd: cambioUsd,
       dif_tc: difTc,
       monto_neto: montoNeto,
+      tipo_transaccion: tipoTransaccion,
       recepcionada: getVal("recepcionadaTrans"),
-      transaccion: getVal("transaccionTrans") || "",
+      transaccion: numeroTransaccion,
       comentario: getVal("comentarioTrans") || "",
       timestamp: new Date(),
     };
 
     // Guardar en Firestore
     const docRef = await db.collection("transferencias").add(datosTrans);
+    
+    // Si la transacción está marcada como completada (OK), registrar en cuenta corriente
+    if (datosTrans.recepcionada === "OK") {
+      try {
+        // Obtener nombres de cliente y operador para los registros
+        const clienteDoc = await db.collection("clientes").doc(clienteId).get();
+        const operadorDoc = await db.collection("operadores").doc(operadorId).get();
+        
+        const clienteNombre = clienteDoc.exists ? clienteDoc.data().nombre : "Cliente desconocido";
+        const operadorNombre = operadorDoc.exists ? operadorDoc.data().nombre : "Operador desconocido";
+        
+        // 1. Registrar débito al operador (lo que debe entregar en USD)
+        await agregarMovimientoCuentaCorriente({
+          clienteId: operadorId,
+          clienteNombre: operadorNombre,
+          moneda: "USD",
+          fecha: datosTrans.fecha,
+          tipoOperacion: "CAMBIO USD POR TRANSFERENCIA",
+          debito: cambioUsd,
+          credito: 0,
+          concepto: `Cambio USD por transferencia ${numeroTransaccion}`
+        });
+        
+        // 2. Registrar crédito al cliente (lo que recibe en USD)
+        await agregarMovimientoCuentaCorriente({
+          clienteId: clienteId,
+          clienteNombre: clienteNombre,
+          moneda: "USD",
+          fecha: datosTrans.fecha,
+          tipoOperacion: "CAMBIO USD POR TRANSFERENCIA",
+          debito: 0,
+          credito: cambioUsd,
+          concepto: `Cambio USD por transferencia ${numeroTransaccion}`
+        });
+      } catch (error) {
+        console.error("Error al registrar en cuenta corriente:", error);
+        // No interrumpir el proceso principal si falla la cuenta corriente
+      }
+    }
 
     // Registrar en historial
     await registrarHistorial("transferencias", "crear", docRef.id, datosTrans);
@@ -1059,29 +1372,69 @@ function renderizarTablaTransferencias(datos) {
   datos.forEach((t) => {
     const fecha = t.fecha ? new Date(t.fecha).toLocaleDateString("es-AR") : "-";
     const estado = t.recepcionada || "Pendiente";
+    
+    // Ensure numeric values exist before using toLocaleString
+    const monto = t.monto !== undefined && t.monto !== null ? t.monto.toLocaleString("es-AR") : "0";
+    const cambioUsd = t.cambio_usd !== undefined && t.cambio_usd !== null ? 
+      t.cambio_usd.toLocaleString("es-AR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }) : "0.00";
+    const tcAplicado = t.tc_usd_salta !== undefined && t.tc_usd_salta !== null ?
+      t.tc_usd_salta.toLocaleString("es-AR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }) : "0.00";
+    const difTc = t.dif_tc !== undefined && t.dif_tc !== null ?
+      t.dif_tc.toLocaleString("es-AR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }) : "0.00";
+      
+    // Formatear comisiones en ambas monedas
+    const comisionArs = t.comision_ars !== undefined && t.comision_ars !== null ?
+      t.comision_ars.toLocaleString("es-AR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }) : "0.00";
+    const comisionUsd = t.comision_usd !== undefined && t.comision_usd !== null ?
+      t.comision_usd.toLocaleString("es-AR", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }) : "0.00";
+      
+    // Mostrar ambas comisiones
+    const comisionFormateada = `$${comisionArs} / U$D ${comisionUsd}`;
+
+    // Determinar clase CSS para estado
+    let estadoClase = "";
+    if (estado === "OK") estadoClase = "estado-ok";
+    else if (estado === "Cancelada") estadoClase = "estado-cancelada";
+    else estadoClase = "estado-pendiente";
+
     tbody.innerHTML += `
       <tr>
-      <td>${fecha}</td>
-      <td>${t.cliente}</td>
-      <td>$${t.monto.toLocaleString("es-AR")}</td>
-      <td>$${t.cambio_usd.toLocaleString("es-AR", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}</td>
-      <td>${t.tc_usd_salta.toLocaleString("es-AR")}</td>
-      <td>$${t.comision.toLocaleString("es-AR")}</td>
-      <td>$${t.dif_tc.toLocaleString("es-AR")}</td>
-      <td><span class="estado-${estado.toLowerCase()}">${estado}</span></td>
-      <td>
-        <button class="btn-editar" onclick="verDetallesTransferencia('${
-          t.id
-        }')">Ver</button>
-        <button onclick="eliminarRegistro('transferencias', '${
-          t.id
-        }', cargarTransferencias)">Eliminar</button>
-      </td>
-      </tr>`;
+        <td>${fecha}</td>
+        <td>${t.cliente}</td>
+        <td>$${monto}</td>
+        <td>${cambioUsd}</td>
+        <td>${tcAplicado}</td>
+        <td>${comisionFormateada}</td>
+        <td>${difTc}</td>
+        <td><span class="${estadoClase}">${estado}</span></td>
+        <td>
+          <button onclick="verDetallesTransferencia('${t.id}')" class="btn-icon">
+            <i class="fas fa-eye"></i>
+          </button>
+          <button onclick="editarTransferencia('${t.id}')" class="btn-icon">
+            <i class="fas fa-edit"></i>
+          </button>
+        </td>
+      </tr>
+    `;
   });
+
+  document.getElementById("loader").classList.remove("active");
 }
 
 // ================== CABLES ==================
@@ -1113,6 +1466,58 @@ const setupCablesCalculos = () => {
   [montoUsdInput, comisionPorcInput].forEach((input) => {
     input.addEventListener("input", calcularComision);
   });
+  
+  // Configurar generación automática de notas
+  const tipoCableSelect = document.getElementById("tipoCable");
+  const estadoSelect = document.getElementById("ingresoCable");
+  const notasTextarea = document.getElementById("notasCable");
+  
+  const actualizarNotas = () => {
+    const tipoCable = tipoCableSelect.value;
+    const estado = estadoSelect.value;
+    
+    // Mantener notas personalizadas si existen
+    if (notasTextarea.getAttribute("data-personalizado") === "true") {
+      return;
+    }
+    
+    // Generar nota automática según tipo y estado
+    let notaAutomatica = "";
+    
+    if (tipoCable === "subida") {
+      if (estado === "Pendiente") {
+        notaAutomatica = "Cable de subida pendiente de procesamiento.";
+      } else if (estado === "OK") {
+        notaAutomatica = "Cable de subida procesado correctamente.";
+      } else if (estado === "Cancelado") {
+        notaAutomatica = "Cable de subida cancelado.";
+      }
+    } else if (tipoCable === "bajada") {
+      if (estado === "Pendiente") {
+        notaAutomatica = "Cable de bajada pendiente de recepción.";
+      } else if (estado === "OK") {
+        notaAutomatica = "Cable de bajada recibido correctamente.";
+      } else if (estado === "Cancelado") {
+        notaAutomatica = "Cable de bajada cancelado.";
+      }
+    }
+    
+    notasTextarea.value = notaAutomatica;
+  };
+  
+  // Ejecutar al iniciar
+  if (tipoCableSelect && estadoSelect && notasTextarea) {
+    actualizarNotas();
+    
+    // Vincular eventos
+    tipoCableSelect.addEventListener("change", actualizarNotas);
+    estadoSelect.addEventListener("change", actualizarNotas);
+    
+    // Marcar como personalizado cuando el usuario edita las notas
+    notasTextarea.addEventListener("input", () => {
+      notasTextarea.setAttribute("data-personalizado", "true");
+    });
+  }
 };
 
 // Inicializar cálculos automáticos
@@ -1144,17 +1549,37 @@ formCables.onsubmit = async (e) => {
     const montoUsd = parseFloat(getVal("montoUsdCable"));
     const comisionPorc = parseFloat(getVal("comisionPorcCable"));
     const comisionUsd = parseFloat(getVal("comisionUsdCable"));
+    const tipoCable = getVal("tipoCable") || "subida";
+    const notas = getVal("notasCable") || "";
+    
+    // Obtener o generar número de transacción
+    let numeroTransaccion = getVal("transaccionCable");
+    if (!numeroTransaccion) {
+      numeroTransaccion = await generarNumeroTransaccion("cables");
+    }
 
-    await db.collection("cables").add({
+    const clienteId = getVal("clienteCable");
+    
+    // Crear objeto con datos
+    const datosCable = {
       fecha: getVal("fechaCable"),
       cliente: getVal("clienteCable"),
-      transaccion: getVal("transaccionCable"),
+      cliente_id: clienteId,
+      tipo_cable: tipoCable,
+      transaccion: numeroTransaccion,
       monto_usd: montoUsd,
       comision_porc: comisionPorc,
       comision_usd: comisionUsd,
       estado: getVal("ingresoCable"),
+      notas: notas,
       timestamp: new Date(),
-    });
+    };
+    
+    // Guardar en Firestore
+    const docRef = await db.collection("cables").add(datosCable);
+    
+    // Registrar en historial
+    await registrarHistorial("cables", "crear", docRef.id, datosCable);
 
     clearForm("formCables");
     setupCablesCalculos(); // Reiniciar cálculos
@@ -1189,871 +1614,24 @@ async function cargarCables() {
       return;
     }
 
-    snap.forEach((doc) => {
-      const d = doc.data();
-      const fecha = d.fecha
-        ? new Date(d.fecha).toLocaleDateString("es-AR")
-        : "-";
-      const estado = d.estado || "Pendiente";
-      tbody.innerHTML += `
-      <tr>
-        <td>${fecha}</td>
-        <td>${d.cliente}</td>
-        <td>$${d.monto_usd.toFixed(2)}</td>
-        <td>${d.comision_porc.toFixed(2)}%</td>
-        <td>$${d.comision_usd.toFixed(2)}</td>
-        <td><span class="estado-${estado.toLowerCase()}">${estado}</span></td>
-        <td>
-          <button class="btn-editar" onclick="verDetallesCable('${
-            doc.id
-          }')">Ver</button>
-          <button onclick="eliminarRegistro('cables', '${
-            doc.id
-          }', cargarCables)">Eliminar</button>
-        </td>
-      </tr>`;
-    });
-  } catch (error) {
-    console.error("Error al cargar cables:", error);
-    Swal.fire({
-      icon: "error",
-      title: "Error",
-      text: "Error al cargar los datos: " + error.message,
-    });
-  }
-}
-
-// Función para ver detalles de cable
-async function verDetallesCable(id) {
-  try {
-    const doc = await db.collection("cables").doc(id).get();
-    if (!doc.exists) {
-      Swal.fire("Error", "Cable no encontrado", "error");
-      return;
-    }
-
-    const c = doc.data();
-    const fecha = c.fecha ? new Date(c.fecha).toLocaleDateString("es-AR") : "-";
-
-    Swal.fire({
-      title: `Cable - ${c.cliente}`,
-      html: `
-        <div style="text-align: left; margin: 15px 0;">
-          <p><strong>Fecha:</strong> ${fecha}</p>
-          <p><strong>Cliente:</strong> ${c.cliente}</p>
-          <p><strong>Transacción:</strong> ${c.transaccion}</p>
-          <p><strong>Monto USD:</strong> $${c.monto_usd.toFixed(2)}</p>
-          <p><strong>Comisión %:</strong> ${c.comision_porc.toFixed(2)}%</p>
-          <p><strong>Comisión USD:</strong> $${c.comision_usd.toFixed(2)}</p>
-          <p><strong>Estado:</strong> ${c.estado || "Pendiente"}</p>
-        </div>
-      `,
-      width: "500px",
-    });
-  } catch (error) {
-    console.error("Error al obtener detalles:", error);
-    Swal.fire("Error", "No se pudieron cargar los detalles", "error");
-  }
-}
-
-// ================== CASH TO CASH ==================
-const formCash = document.getElementById("formCash");
-
-// Configurar cálculos automáticos para Cash to Cash
-const setupCashCalculos = () => {
-  const montoUsdInput = document.getElementById("montoUsdCash");
-  const comisionPorcInput = document.getElementById("comisionPorcCash");
-  const comisionUsdInput = document.getElementById("comisionUsdCash");
-  const comisionUsdResult = document.getElementById("comisionUsdCashResult");
-
-  // Función para calcular la comisión
-  const calcularComision = () => {
-    const montoUsd = parseFloat(montoUsdInput.value) || 0;
-    const comisionPorc = parseFloat(comisionPorcInput.value) || 0;
-
-    // Calcular comisión en USD
-    const comisionUsd = (montoUsd * comisionPorc) / 100;
-
-    // Mostrar en la interfaz
-    comisionUsdResult.textContent = comisionUsd.toFixed(2);
-
-    // Establecer en el campo oculto
-    comisionUsdInput.value = comisionUsd;
-  };
-
-  // Configurar eventos para actualizar cálculos cuando cambian los valores
-  [montoUsdInput, comisionPorcInput].forEach((input) => {
-    input.addEventListener("input", calcularComision);
-  });
-};
-
-// Inicializar cálculos automáticos
-setupCashCalculos();
-
-formCash.onsubmit = async (e) => {
-  e.preventDefault();
-  try {
-    // Verificar campos obligatorios
-    const campos = [
-      "fechaCash",
-      "clienteCash",
-      "transaccionCash",
-      "montoUsdCash",
-      "comisionPorcCash",
-    ];
-
-    for (const campo of campos) {
-      if (!getVal(campo)) {
-        Swal.fire({
-          icon: "error",
-          title: "Campos incompletos",
-          text: "Por favor completa todos los campos requeridos",
-        });
-        return;
-      }
-    }
-
-    const montoUsd = parseFloat(getVal("montoUsdCash"));
-    const comisionPorc = parseFloat(getVal("comisionPorcCash"));
-    const comisionUsd = parseFloat(getVal("comisionUsdCash"));
-
-    await db.collection("cash_to_cash").add({
-      fecha: getVal("fechaCash"),
-      cliente: getVal("clienteCash"),
-      transaccion: getVal("transaccionCash"),
-      monto_usd: montoUsd,
-      comision_porc: comisionPorc,
-      comision_usd: comisionUsd,
-      estado: getVal("estadoCash"),
-      timestamp: new Date(),
-    });
-
-    clearForm("formCash");
-    setupCashCalculos(); // Reiniciar cálculos
-    cargarCash();
-
-    Swal.fire({
-      icon: "success",
-      title: "Éxito",
-      text: "Transacción Cash to Cash registrada correctamente",
-    });
-  } catch (error) {
-    console.error("Error al guardar transaction Cash to Cash:", error);
-    Swal.fire({
-      icon: "error",
-      title: "Error",
-      text: "No se pudo guardar la transacción: " + error.message,
-    });
-  }
-};
-
-async function cargarCash() {
-  const tbody = document.getElementById("tablaCash");
-  tbody.innerHTML = "";
-  try {
-    const snap = await db
-      .collection("cash_to_cash")
-      .orderBy("timestamp", "desc")
-      .get();
-    if (snap.empty) {
-      tbody.innerHTML =
-        '<tr><td colspan="7" style="text-align: center;">No hay registros</td></tr>';
-      return;
-    }
-
-    snap.forEach((doc) => {
-      const d = doc.data();
-      const fecha = d.fecha
-        ? new Date(d.fecha).toLocaleDateString("es-AR")
-        : "-";
-      const estado = d.estado || "Pendiente";
-      tbody.innerHTML += `
-      <tr>
-        <td>${fecha}</td>
-        <td>${d.cliente}</td>
-        <td>$${d.monto_usd.toFixed(2)}</td>
-        <td>${d.comision_porc.toFixed(2)}%</td>
-        <td>$${d.comision_usd.toFixed(2)}</td>
-        <td><span class="estado-${estado.toLowerCase()}">${estado}</span></td>
-        <td>
-          <button class="btn-editar" onclick="verDetallesCash('${
-            doc.id
-          }')">Ver</button>
-          <button onclick="eliminarRegistro('cash_to_cash', '${
-            doc.id
-          }', cargarCash)">Eliminar</button>
-        </td>
-      </tr>`;
-    });
-  } catch (error) {
-    console.error("Error al cargar Cash to Cash:", error);
-    Swal.fire({
-      icon: "error",
-      title: "Error",
-      text: "Error al cargar los datos: " + error.message,
-    });
-  }
-}
-
-// Función para ver detalles de Cash to Cash
-async function verDetallesCash(id) {
-  try {
-    const doc = await db.collection("cash_to_cash").doc(id).get();
-    if (!doc.exists) {
-      Swal.fire("Error", "Transacción no encontrada", "error");
-      return;
-    }
-
-    const c = doc.data();
-    const fecha = c.fecha ? new Date(c.fecha).toLocaleDateString("es-AR") : "-";
-
-    Swal.fire({
-      title: `Cash to Cash - ${c.cliente}`,
-      html: `
-        <div style="text-align: left; margin: 15px 0;">
-          <p><strong>Fecha:</strong> ${fecha}</p>
-          <p><strong>Cliente:</strong> ${c.cliente}</p>
-          <p><strong>Transacción:</strong> ${c.transaccion}</p>
-          <p><strong>Monto USD:</strong> $${c.monto_usd.toFixed(2)}</p>
-          <p><strong>Comisión %:</strong> ${c.comision_porc.toFixed(2)}%</p>
-          <p><strong>Comisión USD:</strong> $${c.comision_usd.toFixed(2)}</p>
-          <p><strong>Estado:</strong> ${c.estado || "Pendiente"}</p>
-        </div>
-      `,
-      width: "500px",
-    });
-  } catch (error) {
-    console.error("Error al obtener detalles:", error);
-    Swal.fire("Error", "No se pudieron cargar los detalles", "error");
-  }
-}
-
-// ================== INGRESO PESOS ==================
-const formIngresoPesos = document.getElementById("formIngresoPesos");
-
-// Configurar cálculos automáticos para Ingreso Pesos
-const setupIngresoPesosCalculos = () => {
-  const montoArsInput = document.getElementById("montoArsIngreso");
-  const comisionPorcInput = document.getElementById("comisionPorcIngreso");
-  const comisionArsInput = document.getElementById("comisionArsIngreso");
-  const comisionArsResult = document.getElementById("comisionArsResult");
-
-  // Función para calcular la comisión
-  const calcularComision = () => {
-    const montoArs = parseFloat(montoArsInput.value) || 0;
-    const comisionPorc = parseFloat(comisionPorcInput.value) || 0;
-
-    // Calcular comisión en ARS
-    const comisionArs = (montoArs * comisionPorc) / 100;
-
-    // Mostrar en la interfaz
-    comisionArsResult.textContent = comisionArs.toLocaleString("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    });
-
-    // Establecer en el campo oculto
-    comisionArsInput.value = comisionArs;
-  };
-
-  // Configurar eventos para actualizar cálculos cuando cambian los valores
-  [montoArsInput, comisionPorcInput].forEach((input) => {
-    input.addEventListener("input", calcularComision);
-  });
-};
-
-// Inicializar cálculos automáticos
-setupIngresoPesosCalculos();
-
-formIngresoPesos.onsubmit = async (e) => {
-  e.preventDefault();
-  try {
-    // Verificar campos obligatorios
-    const campos = [
-      "fechaIngreso",
-      "clienteIngreso",
-      "operadorIngreso",
-      "transaccionIngreso",
-      "montoArsIngreso",
-      "comisionPorcIngreso",
-    ];
-
-    for (const campo of campos) {
-      if (!getVal(campo)) {
-        Swal.fire({
-          icon: "error",
-          title: "Campos incompletos",
-          text: "Por favor completa todos los campos requeridos",
-        });
-        return;
-      }
-    }
-
-    const montoArs = parseFloat(getVal("montoArsIngreso"));
-    const comisionPorc = parseFloat(getVal("comisionPorcIngreso"));
-    const comisionArs = parseFloat(getVal("comisionArsIngreso"));
-
-    await db.collection("ingreso_pesos").add({
-      fecha: getVal("fechaIngreso"),
-      cliente: getVal("clienteIngreso"),
-      operador: getVal("operadorIngreso"),
-      transaccion: getVal("transaccionIngreso"),
-      monto_ars: montoArs,
-      comision_porc: comisionPorc,
-      comision_ars: comisionArs,
-      estado: getVal("estadoIngreso"),
-      timestamp: new Date(),
-    });
-
-    clearForm("formIngresoPesos");
-    setupIngresoPesosCalculos(); // Reiniciar cálculos
-    cargarIngresoPesos();
-
-    Swal.fire({
-      icon: "success",
-      title: "Éxito",
-      text: "Ingreso en Pesos registrado correctamente",
-    });
-  } catch (error) {
-    console.error("Error al guardar ingreso:", error);
-    Swal.fire({
-      icon: "error",
-      title: "Error",
-      text: "No se pudo guardar el ingreso: " + error.message,
-    });
-  }
-};
-
-async function cargarIngresoPesos() {
-  const tbody = document.getElementById("tablaIngresoPesos");
-  tbody.innerHTML = "";
-  try {
-    const snap = await db
-      .collection("ingreso_pesos")
-      .orderBy("timestamp", "desc")
-      .get();
-    if (snap.empty) {
-      tbody.innerHTML =
-        '<tr><td colspan="8" style="text-align: center;">No hay registros</td></tr>';
-      return;
-    }
-
-    snap.forEach((doc) => {
-      const d = doc.data();
-      const fecha = d.fecha
-        ? new Date(d.fecha).toLocaleDateString("es-AR")
-        : "-";
-      const estado = d.estado || "Pendiente";
-      tbody.innerHTML += `
-      <tr>
-        <td>${fecha}</td>
-        <td>${d.cliente}</td>
-        <td>${d.operador}</td>
-        <td>$${d.monto_ars.toLocaleString("es-AR")}</td>
-        <td>${d.comision_porc.toFixed(2)}%</td>
-        <td>$${d.comision_ars.toLocaleString("es-AR")}</td>
-        <td><span class="estado-${estado.toLowerCase()}">${estado}</span></td>
-        <td>
-          <button class="btn-editar" onclick="verDetallesIngresoPesos('${
-            doc.id
-          }')">Ver</button>
-          <button onclick="eliminarRegistro('ingreso_pesos', '${
-            doc.id
-          }', cargarIngresoPesos)">Eliminar</button>
-        </td>
-      </tr>`;
-    });
-  } catch (error) {
-    console.error("Error al cargar ingresos en pesos:", error);
-    Swal.fire({
-      icon: "error",
-      title: "Error",
-      text: "Error al cargar los datos: " + error.message,
-    });
-  }
-}
-
-// Función para ver detalles de Ingreso Pesos
-async function verDetallesIngresoPesos(id) {
-  try {
-    const doc = await db.collection("ingreso_pesos").doc(id).get();
-    if (!doc.exists) {
-      Swal.fire("Error", "Ingreso no encontrado", "error");
-      return;
-    }
-
-    const i = doc.data();
-    const fecha = i.fecha ? new Date(i.fecha).toLocaleDateString("es-AR") : "-";
-
-    Swal.fire({
-      title: `Ingreso Pesos - ${i.cliente}`,
-      html: `
-        <div style="text-align: left; margin: 15px 0;">
-          <p><strong>Fecha:</strong> ${fecha}</p>
-          <p><strong>Cliente:</strong> ${i.cliente}</p>
-          <p><strong>Operador:</strong> ${i.operador}</p>
-          <p><strong>Transacción:</strong> ${i.transaccion}</p>
-          <p><strong>Monto ARS:</strong> $${i.monto_ars.toLocaleString(
-            "es-AR"
-          )}</p>
-          <p><strong>Comisión %:</strong> ${i.comision_porc.toFixed(2)}%</p>
-          <p><strong>Comisión ARS:</strong> $${i.comision_ars.toLocaleString(
-            "es-AR"
-          )}</p>
-          <p><strong>Estado:</strong> ${i.estado || "Pendiente"}</p>
-        </div>
-      `,
-      width: "500px",
-    });
-  } catch (error) {
-    console.error("Error al obtener detalles:", error);
-    Swal.fire("Error", "No se pudieron cargar los detalles", "error");
-  }
-}
-
-// ================== DESCUENTO CHEQUE ==================
-const formDescuentoCheque = document.getElementById("formDescuentoCheque");
-
-// Configurar cálculos automáticos para Descuento de Cheque
-const setupDescuentoChequeCalculos = () => {
-  const montoInput = document.getElementById("montoCheque");
-  const tasaInput = document.getElementById("tasaCheque");
-  const diasInput = document.getElementById("diasCheque");
-  const comisionInput = document.getElementById("comisionCheque");
-
-  // Elementos para mostrar resultados
-  const interesResult = document.getElementById("interesResult");
-  const montoDescontadoResult = document.getElementById(
-    "montoDescontadoResult"
-  );
-
-  // Campos ocultos para guardar valores
-  const interesCheque = document.getElementById("interesCheque");
-  const montoDescontadoCheque = document.getElementById(
-    "montoDescontadoCheque"
-  );
-
-  // Función para realizar los cálculos
-  const calcularValores = () => {
-    const monto = parseFloat(montoInput.value) || 0;
-    const tasa = parseFloat(tasaInput.value) || 0;
-    const dias = parseFloat(diasInput.value) || 0;
-    const comision = parseFloat(comisionInput.value) || 0;
-
-    // Calcular interés
-    const interes = (monto * tasa * dias) / 36500; // 365 días x 100 (para el %)
-
-    // Calcular monto descontado (lo que recibe el cliente)
-    const montoDescontado = monto - (interes + comision);
-
-    // Mostrar en la interfaz
-    interesResult.textContent = interes.toLocaleString("es-AR", {
-      style: "currency",
-      currency: "ARS",
-    });
-
-    montoDescontadoResult.textContent = montoDescontado.toLocaleString(
-      "es-AR",
-      {
-        style: "currency",
-        currency: "ARS",
-      }
-    );
-
-    // Guardar en campos ocultos
-    interesCheque.value = interes;
-    montoDescontadoCheque.value = montoDescontado;
-  };
-
-  // Configurar eventos
-  [montoInput, tasaInput, diasInput, comisionInput].forEach((input) => {
-    input.addEventListener("input", calcularValores);
-  });
-};
-
-// Inicializar cálculos
-setupDescuentoChequeCalculos();
-
-// Manejo del formulario
-formDescuentoCheque.onsubmit = async (e) => {
-  e.preventDefault();
-  try {
-    // Verificar campos obligatorios
-    const campos = [
-      "fechaCheque",
-      "clienteCheque",
-      "montoCheque",
-      "tasaCheque",
-      "diasCheque",
-      "comisionCheque",
-    ];
-
-    for (const campo of campos) {
-      if (!getVal(campo)) {
-        Swal.fire({
-          icon: "error",
-          title: "Campos incompletos",
-          text: "Por favor completa todos los campos requeridos",
-        });
-        return;
-      }
-    }
-
-    // Obtener valores
-    const monto = parseFloat(getVal("montoCheque"));
-    const tasa = parseFloat(getVal("tasaCheque"));
-    const dias = parseInt(getVal("diasCheque"));
-    const comision = parseFloat(getVal("comisionCheque"));
-    const interes = parseFloat(getVal("interesCheque"));
-    const montoDescontado = parseFloat(getVal("montoDescontadoCheque"));
-
-    // Guardar en Firestore
-    await db.collection("descuento_cheque").add({
-      fecha: getVal("fechaCheque"),
-      cliente: getVal("clienteCheque"),
-      monto: monto,
-      tasa: tasa,
-      dias: dias,
-      comision: comision,
-      interes: interes,
-      monto_descontado: montoDescontado,
-      estado: getVal("estadoCheque"),
-      observaciones: getVal("observacionesCheque") || "",
-      timestamp: new Date(),
-    });
-
-    // Limpiar formulario y recargar datos
-    clearForm("formDescuentoCheque");
-    setupDescuentoChequeCalculos();
-    cargarDescuentoCheque();
-
-    Swal.fire({
-      icon: "success",
-      title: "Éxito",
-      text: "Descuento de cheque registrado correctamente",
-    });
-  } catch (error) {
-    console.error("Error al guardar descuento de cheque:", error);
-    Swal.fire({
-      icon: "error",
-      title: "Error",
-      text: "No se pudo guardar el registro: " + error.message,
-    });
-  }
-};
-
-// Cargar datos de descuento de cheques
-async function cargarDescuentoCheque() {
-  const tbody = document.getElementById("tablaDescuentoCheque");
-  tbody.innerHTML = "";
-
-  try {
-    const snap = await db
-      .collection("descuento_cheque")
-      .orderBy("timestamp", "desc")
-      .get();
-
-    if (snap.empty) {
-      tbody.innerHTML =
-        '<tr><td colspan="9" style="text-align: center;">No hay registros</td></tr>';
-      return;
-    }
-
-    snap.forEach((doc) => {
-      const d = doc.data();
-      const fecha = d.fecha
-        ? new Date(d.fecha).toLocaleDateString("es-AR")
-        : "-";
-      const estado = d.estado || "Pendiente";
-
-      tbody.innerHTML += `
-      <tr>
-        <td>${fecha}</td>
-        <td>${d.cliente}</td>
-        <td>$${d.monto.toLocaleString("es-AR")}</td>
-        <td>${d.tasa.toFixed(2)}%</td>
-        <td>${d.dias}</td>
-        <td>$${d.interes.toLocaleString("es-AR")}</td>
-        <td>$${d.monto_descontado.toLocaleString("es-AR")}</td>
-        <td><span class="estado-${estado.toLowerCase()}">${estado}</span></td>
-        <td>
-          <button class="btn-editar" onclick="verDetallesDescuentoCheque('${
-            doc.id
-          }')">Ver</button>
-          <button onclick="eliminarRegistro('descuento_cheque', '${
-            doc.id
-          }', cargarDescuentoCheque)">Eliminar</button>
-        </td>
-      </tr>`;
-    });
-  } catch (error) {
-    console.error("Error al cargar descuento de cheques:", error);
-    Swal.fire({
-      icon: "error",
-      title: "Error",
-      text: "Error al cargar los datos: " + error.message,
-    });
-  }
-}
-
-// Función para ver detalles de descuento de cheque
-async function verDetallesDescuentoCheque(id) {
-  try {
-    const doc = await db.collection("descuento_cheque").doc(id).get();
-    if (!doc.exists) {
-      Swal.fire("Error", "Registro no encontrado", "error");
-      return;
-    }
-
-    const c = doc.data();
-    const fecha = c.fecha ? new Date(c.fecha).toLocaleDateString("es-AR") : "-";
-
-    Swal.fire({
-      title: `Descuento de Cheque - ${c.cliente}`,
-      html: `
-        <div style="text-align: left; margin: 15px 0;">
-          <p><strong>Fecha:</strong> ${fecha}</p>
-          <p><strong>Cliente:</strong> ${c.cliente}</p>
-          <p><strong>Monto:</strong> $${c.monto.toLocaleString("es-AR")}</p>
-          <p><strong>Tasa:</strong> ${c.tasa.toFixed(2)}%</p>
-          <p><strong>Días:</strong> ${c.dias}</p>
-          <p><strong>Comisión:</strong> $${c.comision.toLocaleString(
-            "es-AR"
-          )}</p>
-          <p><strong>Interés:</strong> $${c.interes.toLocaleString("es-AR")}</p>
-          <p><strong>Monto Descontado:</strong> $${c.monto_descontado.toLocaleString(
-            "es-AR"
-          )}</p>
-          <p><strong>Estado:</strong> ${c.estado}</p>
-          <p><strong>Observaciones:</strong> ${c.observaciones || "-"}</p>
-        </div>
-      `,
-      width: "500px",
-    });
-  } catch (error) {
-    console.error("Error al obtener detalles:", error);
-    Swal.fire("Error", "No se pudieron cargar los detalles", "error");
-  }
-}
-
-// Función genérica para eliminar documentos
-delete window.eliminarRegistro;
-window.eliminarRegistro = async (coleccion, id, callback) => {
-  const result = await Swal.fire({
-    title: "¿Estás seguro?",
-    text: "No podrás revertir esta acción",
-    icon: "warning",
-    showCancelButton: true,
-    confirmButtonColor: "#3085d6",
-    cancelButtonColor: "#d33",
-    confirmButtonText: "Sí, eliminar",
-    cancelButtonText: "Cancelar",
-  });
-
-  if (result.isConfirmed) {
-    try {
-      // Obtener datos del registro antes de eliminarlo (para historial)
-      const docRef = db.collection(coleccion).doc(id);
-      const docSnap = await docRef.get();
-      const datosAnteriores = docSnap.data();
-
-      // Eliminar el registro
-      await docRef.delete();
-
-      // Registrar en historial
-      await registrarHistorial(coleccion, "eliminar", id, datosAnteriores);
-
-      callback();
-      Swal.fire("Eliminado", "El registro ha sido eliminado.", "success");
-    } catch (error) {
-      console.error("Error al eliminar:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "No se pudo eliminar el registro: " + error.message,
-      });
-    }
-  }
-};
-
-// Exponer funciones globales
-window.mostrarTab = mostrarTab;
-window.editarOperador = editarOperador;
-window.editarCliente = editarCliente;
-window.verDetallesTransferencia = verDetallesTransferencia;
-window.verDetallesCable = verDetallesCable;
-window.verDetallesCash = verDetallesCash;
-window.verDetallesIngresoPesos = verDetallesIngresoPesos;
-window.verDetallesDescuentoCheque = verDetallesDescuentoCheque;
-
-// Funciones de paginación
-function cambiarRegistrosPorPagina(modulo, valor) {
-  estadoPaginacion[modulo].registrosPorPagina = parseInt(valor);
-  estadoPaginacion[modulo].pagina = 1;
-  actualizarTablaPaginada(modulo);
-}
-
-function paginaAnterior(modulo) {
-  if (estadoPaginacion[modulo].pagina > 1) {
-    estadoPaginacion[modulo].pagina--;
-    actualizarTablaPaginada(modulo);
-  }
-}
-
-function paginaSiguiente(modulo) {
-  const totalPaginas = Math.ceil(
-    estadoPaginacion[modulo].total / estadoPaginacion[modulo].registrosPorPagina
-  );
-  if (estadoPaginacion[modulo].pagina < totalPaginas) {
-    estadoPaginacion[modulo].pagina++;
-    actualizarTablaPaginada(modulo);
-  }
-}
-
-function actualizarTablaPaginada(modulo) {
-  // Mostrar loader
-  document.getElementById("loader").classList.add("active");
-
-  setTimeout(() => {
-    const inicio =
-      (estadoPaginacion[modulo].pagina - 1) *
-      estadoPaginacion[modulo].registrosPorPagina;
-    const fin = inicio + estadoPaginacion[modulo].registrosPorPagina;
-    const datosPaginados = datosCompletos[modulo].slice(inicio, fin);
-
-    // Actualizar la página actual
-    document.getElementById(
-      `paginaActual${modulo.charAt(0).toUpperCase() + modulo.slice(1)}`
-    ).textContent = `Página ${estadoPaginacion[modulo].pagina} de ${Math.ceil(
-      estadoPaginacion[modulo].total /
-        estadoPaginacion[modulo].registrosPorPagina
-    )}`;
-
-    // Habilitar/deshabilitar botones de navegación
-    document.getElementById(
-      `btnAnterior${modulo.charAt(0).toUpperCase() + modulo.slice(1)}`
-    ).disabled = estadoPaginacion[modulo].pagina === 1;
-    document.getElementById(
-      `btnSiguiente${modulo.charAt(0).toUpperCase() + modulo.slice(1)}`
-    ).disabled =
-      estadoPaginacion[modulo].pagina ===
-      Math.ceil(
-        estadoPaginacion[modulo].total /
-          estadoPaginacion[modulo].registrosPorPagina
-      );
-
-    // Renderizar los datos según el módulo
-    switch (modulo) {
-      case "transferencias":
-        renderizarTablaTransferencias(datosPaginados);
-        break;
-      case "cables":
-        renderizarTablaCables(datosPaginados);
-        break;
-      case "cash_to_cash":
-        renderizarTablaCash(datosPaginados);
-        break;
-      case "ingreso_pesos":
-        renderizarTablaIngresoPesos(datosPaginados);
-        break;
-      case "descuento_cheque":
-        renderizarTablaDescuentoCheque(datosPaginados);
-        break;
-      case "historial":
-        renderizarTablaHistorial(datosPaginados);
-        break;
-    }
-
-    // Ocultar loader
-    document.getElementById("loader").classList.remove("active");
-  }, 300);
-}
-
-// SISTEMA DE AUDITORÍA/HISTORIAL DE CAMBIOS
-// Función para registrar una acción en el historial
-async function registrarHistorial(tipoRegistro, accion, idRegistro, detalles) {
-  try {
-    // Obtener fecha y hora actual
-    const fechaHora = new Date();
-
-    // Guardar en Firestore
-    await db.collection("historial").add({
-      fecha: fechaHora.toISOString().split("T")[0],
-      hora: fechaHora.toTimeString().split(" ")[0],
-      usuario: "usuario_actual", // Aquí se podría implementar un sistema de autenticación
-      tipo_registro: tipoRegistro,
-      accion: accion,
-      id_registro: idRegistro,
-      detalles: detalles,
-      timestamp: fechaHora,
-    });
-
-    console.log(`Acción registrada en historial: ${accion} en ${tipoRegistro}`);
-  } catch (error) {
-    console.error("Error al registrar historial:", error);
-  }
-}
-
-// Cargar historial de cambios
-async function cargarHistorial(filtros = {}) {
-  const tbody = document.getElementById("tablaHistorial");
-  tbody.innerHTML = "";
-
-  try {
-    document.getElementById("loader").classList.add("active");
-
-    // Construir la consulta base
-    let query = db.collection("historial").orderBy("timestamp", "desc");
-
-    // Aplicar filtros
-    if (filtros.fechaDesde) {
-      const fechaDesde = new Date(filtros.fechaDesde);
-      fechaDesde.setHours(0, 0, 0, 0);
-      query = query.where("timestamp", ">=", fechaDesde);
-    }
-
-    if (filtros.fechaHasta) {
-      const fechaHasta = new Date(filtros.fechaHasta);
-      fechaHasta.setHours(23, 59, 59, 999);
-      query = query.where("timestamp", "<=", fechaHasta);
-    }
-
-    if (filtros.tipoRegistro && filtros.tipoRegistro !== "todos") {
-      query = query.where("tipo_registro", "==", filtros.tipoRegistro);
-    }
-
-    if (filtros.tipoAccion && filtros.tipoAccion !== "todos") {
-      query = query.where("accion", "==", filtros.tipoAccion);
-    }
-
-    // Ejecutar consulta
-    const snap = await query.get();
-
-    if (snap.empty) {
-      tbody.innerHTML =
-        '<tr><td colspan="6" style="text-align: center;">No hay registros de historial</td></tr>';
-      document.getElementById("loader").classList.remove("active");
-      return;
-    }
-
-    // Almacenar todos los datos para paginación
-    datosCompletos.historial = snap.docs.map((doc) => ({
+    // Almacenar datos para paginación
+    datosCompletos.cables = snap.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     }));
 
     // Actualizar estado de paginación
-    estadoPaginacion.historial.total = datosCompletos.historial.length;
-    estadoPaginacion.historial.pagina = 1;
+    estadoPaginacion.cables.total = datosCompletos.cables.length;
+    estadoPaginacion.cables.pagina = 1;
 
     // Renderizar datos paginados
-    actualizarTablaPaginada("historial");
+    actualizarTablaPaginada("cables");
   } catch (error) {
-    console.error("Error al cargar historial:", error);
+    console.error("Error al cargar cables:", error);
     Swal.fire({
       icon: "error",
       title: "Error",
-      text: "Error al cargar el historial: " + error.message,
+      text: "Error al cargar los cables: " + error.message,
     });
     document.getElementById("loader").classList.remove("active");
   }
@@ -3259,41 +2837,1517 @@ async function eliminarMovimientoCuentaCorriente(id, tipo) {
   }
 }
 
-// Función para ver detalles de transferencia
+// Función para ver/editar detalles de transferencia
 async function verDetallesTransferencia(id) {
   try {
     const doc = await db.collection("transferencias").doc(id).get();
     if (!doc.exists) {
-      Swal.fire("Error", "Registro no encontrado", "error");
+      Swal.fire("Error", "Transferencia no encontrada", "error");
       return;
     }
 
     const t = doc.data();
     const fecha = t.fecha ? new Date(t.fecha).toLocaleDateString("es-AR") : "-";
-    const estado = t.recepcionada || "Pendiente";
-
-    Swal.fire({
-      title: `Transferencia - ${t.cliente}`,
-      html: `
-        <div style="text-align: left; margin: 15px 0;">
-          <p><strong>Fecha:</strong> ${fecha}</p>
-          <p><strong>Cliente:</strong> ${t.cliente}</p>
-          <p><strong>Monto:</strong> $${t.monto.toLocaleString("es-AR")}</p>
-          <p><strong>Cambio USD:</strong> $${t.cambio_usd.toLocaleString("es-AR", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}</p>
-          <p><strong>TC USD Salta:</strong> ${t.tc_usd_salta.toLocaleString("es-AR")}</p>
-          <p><strong>Comisión:</strong> $${t.comision.toLocaleString("es-AR")}</p>
-          <p><strong>Diferencia TC:</strong> $${t.dif_tc.toLocaleString("es-AR")}</p>
-          <p><strong>Estado:</strong> ${estado}</p>
-          <p><strong>Observaciones:</strong> ${t.observaciones || "-"}</p>
+    
+    // Crear HTML para los detalles
+    const html = `
+      <div style="text-align: left; margin: 15px 0;">
+        <p><strong>Fecha:</strong> ${fecha}</p>
+        <p><strong>Transacción:</strong> ${t.transaccion || "Sin número"}</p>
+        <p><strong>Cliente:</strong> ${t.cliente}</p>
+        <p><strong>Operador:</strong> ${t.operador}</p>
+        <p><strong>Destinatario:</strong> ${t.destinatario}</p>
+        <p><strong>Monto ARS:</strong> $${t.monto.toLocaleString("es-AR")}</p>
+        <p><strong>TC BsAs:</strong> ${t.tc_usd_bsas.toLocaleString("es-AR")}</p>
+        <p><strong>TC Salta:</strong> ${t.tc_usd_salta.toLocaleString("es-AR")}</p>
+        <p><strong>DIF TC:</strong> ${t.dif_tc.toLocaleString("es-AR")}</p>
+        <p><strong>Comisión ARS:</strong> $${t.comision_ars.toLocaleString("es-AR")}</p>
+        <p><strong>Comisión USD:</strong> U$D ${t.comision_usd.toLocaleString("es-AR")}</p>
+        <p><strong>Monto Neto:</strong> $${t.monto_neto.toLocaleString("es-AR")}</p>
+        <p><strong>Cambio USD:</strong> U$D ${t.cambio_usd.toLocaleString("es-AR")}</p>
+        <p><strong>Tipo de transacción:</strong> ${t.tipo_transaccion || "envio"}</p>
+        <p><strong>Estado actual:</strong> ${t.recepcionada || "Pendiente"}</p>
+        <p><strong>Comentario:</strong> ${t.comentario || "-"}</p>
+        
+        <div class="form-group" style="margin-top: 20px;">
+          <label for="swal-estado" style="font-weight: bold;">Cambiar Estado:</label>
+          <select id="swal-estado" class="swal2-input">
+            <option value="Pendiente" ${t.recepcionada === "Pendiente" ? "selected" : ""}>Pendiente</option>
+            <option value="OK" ${t.recepcionada === "OK" ? "selected" : ""}>OK</option>
+            <option value="Cancelada" ${t.recepcionada === "Cancelada" ? "selected" : ""}>Cancelada</option>
+          </select>
         </div>
-      `,
-      width: "500px",
+      </div>
+    `;
+
+    const result = await Swal.fire({
+      title: `Transferencia - ${t.transaccion || "Sin número"}`,
+      html: html,
+      width: "600px",
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: "Guardar Cambios",
+      denyButtonText: "Editar Completo",
+      cancelButtonText: "Cerrar",
+      focusConfirm: false,
+      preConfirm: () => {
+        return {
+          estado: document.getElementById("swal-estado").value
+        };
+      }
     });
+
+    if (result.isConfirmed) {
+      const nuevoEstado = result.value.estado;
+      const estadoAnterior = t.recepcionada || "Pendiente";
+      
+      // Si el estado cambió, actualizar en la base de datos
+      if (nuevoEstado !== estadoAnterior) {
+        await db.collection("transferencias").doc(id).update({
+          recepcionada: nuevoEstado
+        });
+        
+        // Si el estado ahora es "OK", necesitamos registrar en cuenta corriente
+        if (nuevoEstado === "OK" && estadoAnterior !== "OK") {
+          try {
+            // Obtener nombres de cliente y operador para los registros
+            const clienteId = t.cliente_id;
+            const operadorId = t.operador_id;
+            
+            if (clienteId && operadorId) {
+              const clienteDoc = await db.collection("clientes").doc(clienteId).get();
+              const operadorDoc = await db.collection("operadores").doc(operadorId).get();
+              
+              const clienteNombre = clienteDoc.exists ? clienteDoc.data().nombre : "Cliente desconocido";
+              const operadorNombre = operadorDoc.exists ? operadorDoc.data().nombre : "Operador desconocido";
+              
+              // 1. Registrar débito al operador (lo que debe entregar en USD)
+              await agregarMovimientoCuentaCorriente({
+                clienteId: operadorId,
+                clienteNombre: operadorNombre,
+                moneda: "USD",
+                fecha: t.fecha,
+                tipoOperacion: "CAMBIO USD POR TRANSFERENCIA",
+                debito: t.cambio_usd,
+                credito: 0,
+                concepto: `Cambio USD por transferencia ${t.transaccion || id.substring(0, 8)}`
+              });
+              
+              // 2. Registrar crédito al cliente (lo que recibe en USD)
+              await agregarMovimientoCuentaCorriente({
+                clienteId: clienteId,
+                clienteNombre: clienteNombre,
+                moneda: "USD",
+                fecha: t.fecha,
+                tipoOperacion: "CAMBIO USD POR TRANSFERENCIA",
+                debito: 0,
+                credito: t.cambio_usd,
+                concepto: `Cambio USD por transferencia ${t.transaccion || id.substring(0, 8)}`
+              });
+              
+              // Registrar en historial
+              await registrarHistorial(
+                "transferencias", 
+                "editar", 
+                id, 
+                { 
+                  estado_anterior: estadoAnterior, 
+                  estado_nuevo: nuevoEstado,
+                  cuenta_corriente: "Registrado movimiento en cuenta corriente"
+                }
+              );
+            } else {
+              console.warn("No se pudo registrar en cuenta corriente: falta ID de cliente u operador");
+            }
+          } catch (error) {
+            console.error("Error al registrar en cuenta corriente:", error);
+            // Mostrar advertencia pero no bloquear flujo
+    Swal.fire({
+              icon: "warning",
+              title: "Advertencia",
+              text: "La transferencia se marcó como completada pero hubo un error al registrar en cuenta corriente.",
+              toast: true,
+              position: "top-end",
+              showConfirmButton: false,
+              timer: 5000
+            });
+          }
+        } else {
+          // Si cambió a otro estado, registrar en historial
+          await registrarHistorial(
+            "transferencias", 
+            "editar", 
+            id, 
+            { 
+              estado_anterior: estadoAnterior, 
+              estado_nuevo: nuevoEstado 
+            }
+          );
+        }
+        
+        // Recargar datos
+        cargarTransferencias();
+        
+        Swal.fire(
+          "¡Actualizado!",
+          `Estado actualizado a: ${nuevoEstado}`,
+          "success"
+        );
+      }
+    } else if (result.isDenied) {
+      // Lógica para edición completa de la transferencia
+      editarTransferenciaCompleta(id, t);
+    }
   } catch (error) {
     console.error("Error al obtener detalles:", error);
     Swal.fire("Error", "No se pudieron cargar los detalles", "error");
+  }
+}
+
+// Función para editar completamente una transferencia
+async function editarTransferenciaCompleta(id, datos) {
+  try {
+    const result = await Swal.fire({
+      title: 'Editar Transferencia',
+      html: `
+        <div class="form-group">
+          <label for="swal-fecha">Fecha</label>
+          <input type="date" id="swal-fecha" class="swal2-input" value="${datos.fecha}" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-transaccion">Número de transacción</label>
+          <input type="text" id="swal-transaccion" class="swal2-input" value="${datos.transaccion || ''}">
+        </div>
+        <div class="form-group">
+          <label for="swal-destinatario">Destinatario</label>
+          <input type="text" id="swal-destinatario" class="swal2-input" value="${datos.destinatario}" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-monto">Monto ARS</label>
+          <input type="text" id="swal-monto" class="swal2-input" value="${datos.monto}" pattern="[0-9]+(\.[0-9]{0,2})?" inputmode="decimal" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-tc-bsas">TC USD BsAs</label>
+          <input type="text" id="swal-tc-bsas" class="swal2-input" value="${datos.tc_usd_bsas}" pattern="[0-9]+(\.[0-9]{0,2})?" inputmode="decimal" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-tc-salta">TC USD Salta</label>
+          <input type="text" id="swal-tc-salta" class="swal2-input" value="${datos.tc_usd_salta}" pattern="[0-9]+(\.[0-9]{0,2})?" inputmode="decimal" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-comision-usd">Comisión USD</label>
+          <input type="text" id="swal-comision-usd" class="swal2-input" value="${datos.comision_usd || (datos.comision / datos.tc_usd_salta).toFixed(2)}" pattern="[0-9]+(\.[0-9]{0,2})?" inputmode="decimal" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-tipo">Tipo de Transacción</label>
+          <select id="swal-tipo" class="swal2-input">
+            <option value="envio" ${datos.tipo_transaccion === 'envio' ? 'selected' : ''}>Envío</option>
+            <option value="recibo" ${datos.tipo_transaccion === 'recibo' ? 'selected' : ''}>Recibo</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="swal-estado">Estado</label>
+          <select id="swal-estado" class="swal2-input">
+            <option value="Pendiente" ${datos.recepcionada === 'Pendiente' ? 'selected' : ''}>Pendiente</option>
+            <option value="OK" ${datos.recepcionada === 'OK' ? 'selected' : ''}>OK</option>
+            <option value="Cancelada" ${datos.recepcionada === 'Cancelada' ? 'selected' : ''}>Cancelada</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="swal-comentario">Comentario</label>
+          <input type="text" id="swal-comentario" class="swal2-input" value="${datos.comentario || ''}">
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        // Validar campos obligatorios y convertir a números
+        const montoStr = document.getElementById('swal-monto').value.replace(/,/g, '.');
+        const tcBsAsStr = document.getElementById('swal-tc-bsas').value.replace(/,/g, '.');
+        const tcSaltaStr = document.getElementById('swal-tc-salta').value.replace(/,/g, '.');
+        const comisionUsdStr = document.getElementById('swal-comision-usd').value.replace(/,/g, '.');
+        
+        const monto = parseFloat(montoStr);
+        const tcBsAs = parseFloat(tcBsAsStr);
+        const tcSalta = parseFloat(tcSaltaStr);
+        const comisionUsd = parseFloat(comisionUsdStr);
+        
+        if (!document.getElementById('swal-fecha').value || 
+            !document.getElementById('swal-destinatario').value || 
+            isNaN(monto) || isNaN(tcBsAs) || isNaN(tcSalta) || isNaN(comisionUsd)) {
+          Swal.showValidationMessage('Por favor completa todos los campos requeridos');
+          return false;
+        }
+        
+        // Recalcular valores
+        const difTc = tcSalta - tcBsAs;
+        const comisionArs = comisionUsd * tcSalta;
+        const montoNeto = monto - comisionArs;
+        const cambioUsd = montoNeto / tcSalta;
+        
+        return {
+          fecha: document.getElementById('swal-fecha').value,
+          transaccion: document.getElementById('swal-transaccion').value,
+          destinatario: document.getElementById('swal-destinatario').value,
+          monto: monto,
+          tc_usd_bsas: tcBsAs,
+          tc_usd_salta: tcSalta,
+          comision: comisionArs,           // Para compatibilidad con código existente
+          comision_ars: comisionArs,
+          comision_usd: comisionUsd,
+          dif_tc: difTc,
+          monto_neto: montoNeto,
+          cambio_usd: cambioUsd,
+          tipo_transaccion: document.getElementById('swal-tipo').value,
+          recepcionada: document.getElementById('swal-estado').value,
+          comentario: document.getElementById('swal-comentario').value
+        };
+      }
+    });
+    
+    if (result.isConfirmed) {
+      const nuevaData = result.value;
+      const estadoAnterior = datos.recepcionada || "Pendiente";
+      const estadoNuevo = nuevaData.recepcionada;
+      
+      // Actualizar la transferencia
+      await db.collection('transferencias').doc(id).update({
+        ...nuevaData,
+        timestamp: new Date() // Actualizar timestamp
+      });
+      
+      // Si el estado ahora es "OK" y antes no lo era, crear entradas en cuenta corriente
+      if (estadoNuevo === "OK" && estadoAnterior !== "OK") {
+        try {
+          // Obtener nombres de cliente y operador para los registros
+          const clienteId = datos.cliente_id;
+          const operadorId = datos.operador_id;
+          
+          if (clienteId && operadorId) {
+            const clienteDoc = await db.collection("clientes").doc(clienteId).get();
+            const operadorDoc = await db.collection("operadores").doc(operadorId).get();
+            
+            const clienteNombre = clienteDoc.exists ? clienteDoc.data().nombre : "Cliente desconocido";
+            const operadorNombre = operadorDoc.exists ? operadorDoc.data().nombre : "Operador desconocido";
+            
+            // 1. Registrar débito al operador (lo que debe entregar en USD)
+            await agregarMovimientoCuentaCorriente({
+              clienteId: operadorId,
+              clienteNombre: operadorNombre,
+              moneda: "USD",
+              fecha: nuevaData.fecha,
+              tipoOperacion: "CAMBIO USD POR TRANSFERENCIA",
+              debito: nuevaData.cambio_usd,
+              credito: 0,
+              concepto: `Cambio USD por transferencia ${nuevaData.transaccion || id.substring(0, 8)}`
+            });
+            
+            // 2. Registrar crédito al cliente (lo que recibe en USD)
+            await agregarMovimientoCuentaCorriente({
+              clienteId: clienteId,
+              clienteNombre: clienteNombre,
+              moneda: "USD",
+              fecha: nuevaData.fecha,
+              tipoOperacion: "CAMBIO USD POR TRANSFERENCIA",
+              debito: 0,
+              credito: nuevaData.cambio_usd,
+              concepto: `Cambio USD por transferencia ${nuevaData.transaccion || id.substring(0, 8)}`
+            });
+          }
+        } catch (error) {
+          console.error("Error al registrar en cuenta corriente:", error);
+        }
+      }
+      
+      // Registrar en historial
+      await registrarHistorial(
+        "transferencias", 
+        "editar", 
+        id, 
+        { 
+          datos_anteriores: datos,
+          datos_nuevos: nuevaData
+        }
+      );
+      
+      // Recargar datos
+      cargarTransferencias();
+      
+      Swal.fire({
+        icon: 'success',
+        title: '¡Transferencia actualizada!',
+        text: 'Los datos han sido actualizados correctamente.'
+      });
+    }
+  } catch (error) {
+    console.error('Error al editar transferencia:', error);
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: 'No se pudo actualizar la transferencia: ' + error.message
+    });
+  }
+}
+
+// Función para renderizar tabla de cables paginada
+function renderizarTablaCables(datos) {
+  const tbody = document.getElementById("tablaCables");
+  tbody.innerHTML = "";
+
+  if (datos.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="8" style="text-align: center;">No hay registros</td></tr>';
+    return;
+  }
+
+  datos.forEach((d) => {
+    const fecha = d.fecha ? new Date(d.fecha).toLocaleDateString("es-AR") : "-";
+    const estado = d.estado || "Pendiente";
+    const tipoCable = d.tipo_cable === "bajada" ? "Bajada" : "Subida";
+    
+    // Add null checks for numeric values
+    const montoUsd = d.monto_usd !== undefined && d.monto_usd !== null ? 
+      d.monto_usd.toFixed(2) : "0.00";
+    const comisionPorc = d.comision_porc !== undefined && d.comision_porc !== null ? 
+      d.comision_porc.toFixed(2) : "0.00";
+    const comisionUsd = d.comision_usd !== undefined && d.comision_usd !== null ? 
+      d.comision_usd.toFixed(2) : "0.00";
+    
+    tbody.innerHTML += `
+    <tr>
+      <td>${fecha}</td>
+      <td>${d.cliente || "-"}</td>
+      <td>${tipoCable}</td>
+      <td>$${montoUsd}</td>
+      <td>${comisionPorc}%</td>
+      <td>$${comisionUsd}</td>
+      <td><span class="estado-${estado.toLowerCase()}">${estado}</span></td>
+      <td>
+        <button class="btn-editar" onclick="verDetallesCable('${
+          d.id
+        }')">Ver</button>
+        <button onclick="eliminarRegistro('cables', '${
+          d.id
+        }', cargarCables)">Eliminar</button>
+      </td>
+    </tr>`;
+  });
+}
+
+// Función para ver detalles de cable
+async function verDetallesCable(id) {
+  try {
+    const doc = await db.collection("cables").doc(id).get();
+    if (!doc.exists) {
+      Swal.fire("Error", "Cable no encontrado", "error");
+      return;
+    }
+
+    const c = doc.data();
+    const fecha = c.fecha ? new Date(c.fecha).toLocaleDateString("es-AR") : "-";
+    const tipoCable = c.tipo_cable === "bajada" ? "Bajada" : "Subida";
+    
+    // Add null checks for numeric values
+    const montoUsd = c.monto_usd !== undefined && c.monto_usd !== null ? 
+      c.monto_usd.toFixed(2) : "0.00";
+    const comisionPorc = c.comision_porc !== undefined && c.comision_porc !== null ? 
+      c.comision_porc.toFixed(2) : "0.00";
+    const comisionUsd = c.comision_usd !== undefined && c.comision_usd !== null ? 
+      c.comision_usd.toFixed(2) : "0.00";
+
+    const result = await Swal.fire({
+      title: `Cable ${tipoCable} - ${c.cliente || ""}`,
+      html: `
+        <div style="text-align: left; margin: 15px 0;">
+          <p><strong>Fecha:</strong> ${fecha}</p>
+          <p><strong>Cliente:</strong> ${c.cliente || "-"}</p>
+          <p><strong>Tipo:</strong> ${tipoCable}</p>
+          <p><strong>Transacción:</strong> ${c.transaccion || "-"}</p>
+          <p><strong>Monto USD:</strong> $${montoUsd}</p>
+          <p><strong>Comisión %:</strong> ${comisionPorc}%</p>
+          <p><strong>Comisión USD:</strong> $${comisionUsd}</p>
+          <p><strong>Estado actual:</strong> ${c.estado || "Pendiente"}</p>
+          <p><strong>Notas:</strong> ${c.notas || "-"}</p>
+          
+          <div class="form-group" style="margin-top: 20px;">
+            <label for="swal-tipo" style="font-weight: bold;">Tipo de Cable:</label>
+            <select id="swal-tipo" class="swal2-input">
+              <option value="subida" ${c.tipo_cable === "subida" ? "selected" : ""}>Subida</option>
+              <option value="bajada" ${c.tipo_cable === "bajada" ? "selected" : ""}>Bajada</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="swal-estado" style="font-weight: bold;">Cambiar Estado:</label>
+            <select id="swal-estado" class="swal2-input">
+              <option value="Pendiente" ${c.estado === "Pendiente" ? "selected" : ""}>Pendiente</option>
+              <option value="OK" ${c.estado === "OK" ? "selected" : ""}>OK</option>
+              <option value="Cancelado" ${c.estado === "Cancelado" ? "selected" : ""}>Cancelado</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="swal-notas" style="font-weight: bold;">Notas:</label>
+            <textarea id="swal-notas" class="swal2-textarea" style="width: 100%;">${c.notas || ""}</textarea>
+            <small style="display: block; margin-top: 5px;">Las notas se actualizarán automáticamente según el estado, a menos que las personalices.</small>
+          </div>
+        </div>
+      `,
+      width: "600px",
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: "Guardar Cambios",
+      denyButtonText: "Editar Completo",
+      cancelButtonText: "Cerrar",
+      focusConfirm: false,
+      preConfirm: () => {
+        return {
+          tipo_cable: document.getElementById("swal-tipo").value,
+          estado: document.getElementById("swal-estado").value,
+          notas: document.getElementById("swal-notas").value
+        };
+      }
+    });
+
+    if (result.isConfirmed) {
+      const nuevoTipo = result.value.tipo_cable;
+      const nuevoEstado = result.value.estado;
+      const nuevasNotas = result.value.notas;
+      const tipoAnterior = c.tipo_cable || "subida";
+      const estadoAnterior = c.estado || "Pendiente";
+      
+      // Generar nota automática si no se personalizó
+      let notasActualizadas = nuevasNotas;
+      
+      // Si las notas están vacías o son iguales a las notas automáticas anteriores, generar nuevas
+      if (!nuevasNotas || nuevasNotas === generarNotaAutomatica(tipoAnterior, estadoAnterior)) {
+        notasActualizadas = generarNotaAutomatica(nuevoTipo, nuevoEstado);
+      }
+      
+      // Si hubo cambios, actualizar en la base de datos
+      if (nuevoTipo !== tipoAnterior || nuevoEstado !== estadoAnterior || notasActualizadas !== (c.notas || "")) {
+        await db.collection("cables").doc(id).update({
+          tipo_cable: nuevoTipo,
+          estado: nuevoEstado,
+          notas: notasActualizadas
+        });
+        
+        // Registrar en historial
+        await registrarHistorial(
+          "cables", 
+          "editar", 
+          id, 
+          { 
+            tipo_anterior: tipoAnterior,
+            tipo_nuevo: nuevoTipo,
+            estado_anterior: estadoAnterior, 
+            estado_nuevo: nuevoEstado,
+            notas_actualizadas: notasActualizadas !== (c.notas || "")
+          }
+        );
+        
+        // Recargar datos
+        cargarCables();
+        
+        Swal.fire(
+          "¡Actualizado!",
+          `Información de cable actualizada`,
+          "success"
+        );
+      }
+    } else if (result.isDenied) {
+      // Lógica para edición completa
+      editarCableCompleto(id, c);
+    }
+  } catch (error) {
+    console.error("Error al obtener detalles:", error);
+    Swal.fire("Error", "No se pudieron cargar los detalles", "error");
+  }
+}
+
+// Función para generar nota automática según el tipo de cable y estado
+function generarNotaAutomatica(tipoCable, estado) {
+  if (tipoCable === "subida") {
+    if (estado === "Pendiente") {
+      return "Cable de subida pendiente de procesamiento.";
+    } else if (estado === "OK") {
+      return "Cable de subida procesado correctamente.";
+    } else if (estado === "Cancelado") {
+      return "Cable de subida cancelado.";
+    }
+  } else if (tipoCable === "bajada") {
+    if (estado === "Pendiente") {
+      return "Cable de bajada pendiente de recepción.";
+    } else if (estado === "OK") {
+      return "Cable de bajada recibido correctamente.";
+    } else if (estado === "Cancelado") {
+      return "Cable de bajada cancelado.";
+    }
+  }
+  return "";
+}
+
+// Configurar cálculos automáticos para Cash to Cash
+const setupCashCalculos = () => {
+  const montoUsdInput = document.getElementById("montoUsdCash");
+  const comisionPorcInput = document.getElementById("comisionPorcCash");
+  const comisionUsdInput = document.getElementById("comisionUsdCash");
+  const comisionUsdResult = document.getElementById("comisionUsdCashResult");
+
+  // Función para calcular la comisión
+  const calcularComision = () => {
+    const montoUsd = parseFloat(montoUsdInput.value) || 0;
+    const comisionPorc = parseFloat(comisionPorcInput.value) || 0;
+
+    // Calcular comisión en USD (puede ser positiva o negativa)
+    const comisionUsd = (montoUsd * comisionPorc) / 100;
+
+    // Mostrar en la interfaz (con signo)
+    if (comisionUsd >= 0) {
+      comisionUsdResult.textContent = comisionUsd.toFixed(2);
+      comisionUsdResult.classList.remove("negativo");
+    } else {
+      comisionUsdResult.textContent = `${Math.abs(comisionUsd).toFixed(2)} (negativo)`;
+      comisionUsdResult.classList.add("negativo");
+    }
+
+    // Establecer en el campo oculto
+    comisionUsdInput.value = comisionUsd;
+  };
+
+  // Configurar eventos para actualizar cálculos cuando cambian los valores
+  [montoUsdInput, comisionPorcInput].forEach((input) => {
+    input.addEventListener("input", calcularComision);
+  });
+};
+
+// Configurar cálculos automáticos para Descuento de Cheque
+const setupDescuentoChequeCalculos = () => {
+  const montoInput = document.getElementById("montoCheque");
+  const tasaInput = document.getElementById("tasaCheque");
+  const diasInput = document.getElementById("diasCheque");
+  const comisionInput = document.getElementById("comisionCheque");
+  const fechaTomaInput = document.getElementById("fechaTomaCheque");
+  const fechaVencimientoInput = document.getElementById("fechaVencimientoCheque");
+
+  // Elementos para mostrar resultados
+  const interesResult = document.getElementById("interesResult");
+  const montoDescontadoResult = document.getElementById("montoDescontadoResult");
+
+  // Campos ocultos para guardar valores
+  const interesCheque = document.getElementById("interesCheque");
+  const montoDescontadoCheque = document.getElementById("montoDescontadoCheque");
+
+  // Función para calcular días entre dos fechas
+  const calcularDiasEntreFechas = () => {
+    if (fechaTomaInput.value && fechaVencimientoInput.value) {
+      const fechaToma = new Date(fechaTomaInput.value);
+      const fechaVencimiento = new Date(fechaVencimientoInput.value);
+      
+      // Verificar que las fechas sean válidas
+      if (!isNaN(fechaToma.getTime()) && !isNaN(fechaVencimiento.getTime())) {
+        // Calcular la diferencia en milisegundos
+        const diferenciaMs = fechaVencimiento - fechaToma;
+        
+        // Convertir a días y establecer en el campo
+        const dias = Math.round(diferenciaMs / (1000 * 60 * 60 * 24));
+        
+        // Establecer el valor en el campo de días
+        diasInput.value = dias;
+        
+        // Actualizar los cálculos con el nuevo valor de días
+        calcularValores();
+      }
+    }
+  };
+
+  // Función para realizar los cálculos
+  const calcularValores = () => {
+    const monto = parseFloat(montoInput.value) || 0;
+    const tasa = parseFloat(tasaInput.value) || 0;
+    const dias = parseFloat(diasInput.value) || 0;
+    const comision = parseFloat(comisionInput.value) || 0;
+
+    // Calcular interés
+    const interes = (monto * tasa * dias) / 36500; // 365 días x 100 (para el %)
+
+    // Calcular monto descontado (lo que recibe el cliente)
+    const montoDescontado = monto - (interes + comision);
+
+    // Mostrar en la interfaz
+    interesResult.textContent = interes.toLocaleString("es-AR", {
+      style: "currency",
+      currency: "ARS",
+    });
+
+    montoDescontadoResult.textContent = montoDescontado.toLocaleString(
+      "es-AR",
+      {
+        style: "currency",
+        currency: "ARS",
+      }
+    );
+
+    // Guardar en campos ocultos
+    interesCheque.value = interes;
+    montoDescontadoCheque.value = montoDescontado;
+  };
+
+  // Configurar eventos para fechas
+  fechaTomaInput.addEventListener("change", calcularDiasEntreFechas);
+  fechaVencimientoInput.addEventListener("change", calcularDiasEntreFechas);
+  
+  // Configurar eventos para otros campos
+  [montoInput, tasaInput, diasInput, comisionInput].forEach((input) => {
+    input.addEventListener("input", calcularValores);
+  });
+};
+
+// Manejo del formulario
+formDescuentoCheque.onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    // Verificar campos obligatorios
+    const campos = [
+      "fechaCheque",
+      "fechaTomaCheque",
+      "fechaVencimientoCheque",
+      "clienteCheque",
+      "montoCheque",
+      "tasaCheque",
+      "diasCheque",
+      "comisionCheque",
+    ];
+
+    for (const campo of campos) {
+      if (!getVal(campo)) {
+        Swal.fire({
+          icon: "error",
+          title: "Campos incompletos",
+          text: "Por favor completa todos los campos requeridos",
+        });
+        return;
+      }
+    }
+
+    // Obtener valores
+    const monto = parseFloat(getVal("montoCheque"));
+    const tasa = parseFloat(getVal("tasaCheque"));
+    const dias = parseInt(getVal("diasCheque"));
+    const comision = parseFloat(getVal("comisionCheque"));
+    const interes = parseFloat(getVal("interesCheque"));
+    const montoDescontado = parseFloat(getVal("montoDescontadoCheque"));
+    const clienteId = getVal("clienteCheque");
+    
+    // Obtener o generar número de transacción
+    let numeroTransaccion = await generarNumeroTransaccion("descuento_cheque");
+
+    // Crear objeto con datos
+    const datosCheque = {
+      fecha: getVal("fechaCheque"),
+      fecha_toma: getVal("fechaTomaCheque"),
+      fecha_vencimiento: getVal("fechaVencimientoCheque"),
+      cliente: getVal("clienteCheque"),
+      cliente_id: clienteId,
+      transaccion: numeroTransaccion,
+      monto: monto,
+      tasa: tasa,
+      dias: dias,
+      comision: comision,
+      interes: interes,
+      monto_descontado: montoDescontado,
+      estado: getVal("estadoCheque"),
+      observaciones: getVal("observacionesCheque") || "",
+      timestamp: new Date(),
+    };
+    
+    // Guardar en Firestore
+    const docRef = await db.collection("descuento_cheque").add(datosCheque);
+    
+    // Registrar en historial
+    await registrarHistorial("descuento_cheque", "crear", docRef.id, datosCheque);
+
+    // Limpiar formulario y recargar datos
+    clearForm("formDescuentoCheque");
+    setupDescuentoChequeCalculos();
+    cargarDescuentoCheque();
+
+    Swal.fire({
+      icon: "success",
+      title: "Éxito",
+      text: "Descuento de cheque registrado correctamente",
+    });
+  } catch (error) {
+    console.error("Error al guardar descuento de cheque:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "No se pudo guardar el registro: " + error.message,
+    });
+  }
+};
+
+// Cargar datos de descuento de cheques
+async function cargarDescuentoCheque() {
+  const tbody = document.getElementById("tablaDescuentoCheque");
+  tbody.innerHTML = "";
+
+  try {
+    const snap = await db
+      .collection("descuento_cheque")
+      .orderBy("timestamp", "desc")
+      .get();
+
+    if (snap.empty) {
+      tbody.innerHTML =
+        '<tr><td colspan="11" style="text-align: center;">No hay registros</td></tr>';
+      return;
+    }
+    
+    // Almacenar datos para paginación
+    datosCompletos.descuento_cheque = snap.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    // Actualizar estado de paginación
+    estadoPaginacion.descuento_cheque.total = datosCompletos.descuento_cheque.length;
+    estadoPaginacion.descuento_cheque.pagina = 1;
+
+    // Renderizar la primera página
+    actualizarTablaPaginada("descuento_cheque");
+  } catch (error) {
+    console.error("Error al cargar descuento de cheques:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "Error al cargar los datos: " + error.message,
+    });
+  }
+}
+
+// Función para renderizar tabla de descuento de cheques paginada
+function renderizarTablaDescuentoCheque(datos) {
+  const tbody = document.getElementById("tablaDescuentoCheque");
+  tbody.innerHTML = "";
+
+  if (datos.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="11" style="text-align: center;">No hay registros</td></tr>';
+    return;
+  }
+
+  datos.forEach((d) => {
+    const fecha = d.fecha ? new Date(d.fecha).toLocaleDateString("es-AR") : "-";
+    const fechaToma = d.fecha_toma ? new Date(d.fecha_toma).toLocaleDateString("es-AR") : "-";
+    const fechaVencimiento = d.fecha_vencimiento ? new Date(d.fecha_vencimiento).toLocaleDateString("es-AR") : "-";
+    const estado = d.estado || "Pendiente";
+
+    tbody.innerHTML += `
+    <tr>
+      <td>${fecha}</td>
+      <td>${fechaToma}</td>
+      <td>${fechaVencimiento}</td>
+      <td>${d.cliente}</td>
+      <td>$${d.monto.toLocaleString("es-AR")}</td>
+      <td>${d.tasa.toFixed(2)}%</td>
+      <td>${d.dias}</td>
+      <td>$${d.interes.toLocaleString("es-AR")}</td>
+      <td>$${d.monto_descontado.toLocaleString("es-AR")}</td>
+      <td><span class="estado-${estado.toLowerCase()}">${estado}</span></td>
+      <td>
+        <button class="btn-editar" onclick="verDetallesDescuentoCheque('${d.id}')">Ver</button>
+        <button onclick="eliminarRegistro('descuento_cheque', '${d.id}', cargarDescuentoCheque)">Eliminar</button>
+      </td>
+    </tr>`;
+  });
+}
+
+// Función para ver detalles de descuento de cheque
+async function verDetallesDescuentoCheque(id) {
+  try {
+    const doc = await db.collection("descuento_cheque").doc(id).get();
+    if (!doc.exists) {
+      Swal.fire("Error", "Registro no encontrado", "error");
+      return;
+    }
+
+    const c = doc.data();
+    const fecha = c.fecha ? new Date(c.fecha).toLocaleDateString("es-AR") : "-";
+    const fechaToma = c.fecha_toma ? new Date(c.fecha_toma).toLocaleDateString("es-AR") : "-";
+    const fechaVencimiento = c.fecha_vencimiento ? new Date(c.fecha_vencimiento).toLocaleDateString("es-AR") : "-";
+
+    const result = await Swal.fire({
+      title: `Descuento de Cheque - ${c.cliente}`,
+      html: `
+        <div style="text-align: left; margin: 15px 0;">
+          <p><strong>Fecha:</strong> ${fecha}</p>
+          <p><strong>Fecha de Toma:</strong> ${fechaToma}</p>
+          <p><strong>Fecha de Vencimiento:</strong> ${fechaVencimiento}</p>
+          <p><strong>Cliente:</strong> ${c.cliente}</p>
+          <p><strong>Transacción:</strong> ${c.transaccion || "-"}</p>
+          <p><strong>Monto:</strong> $${c.monto.toLocaleString("es-AR")}</p>
+          <p><strong>Tasa:</strong> ${c.tasa.toFixed(2)}%</p>
+          <p><strong>Días:</strong> ${c.dias}</p>
+          <p><strong>Comisión:</strong> $${c.comision.toLocaleString("es-AR")}</p>
+          <p><strong>Interés:</strong> $${c.interes.toLocaleString("es-AR")}</p>
+          <p><strong>Monto Descontado:</strong> $${c.monto_descontado.toLocaleString("es-AR")}</p>
+          <p><strong>Estado actual:</strong> ${c.estado || "Pendiente"}</p>
+          <p><strong>Observaciones:</strong> ${c.observaciones || "-"}</p>
+          
+          <div class="form-group" style="margin-top: 20px;">
+            <label for="swal-estado" style="font-weight: bold;">Cambiar Estado:</label>
+            <select id="swal-estado" class="swal2-input">
+              <option value="Pendiente" ${c.estado === "Pendiente" ? "selected" : ""}>Pendiente</option>
+              <option value="Cobrado" ${c.estado === "Cobrado" ? "selected" : ""}>Cobrado</option>
+              <option value="Rechazado" ${c.estado === "Rechazado" ? "selected" : ""}>Rechazado</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="swal-observaciones" style="font-weight: bold;">Observaciones:</label>
+            <textarea id="swal-observaciones" class="swal2-textarea" style="width: 100%;">${c.observaciones || ""}</textarea>
+          </div>
+        </div>
+      `,
+      width: "600px",
+      showCancelButton: true,
+      showDenyButton: true,
+      confirmButtonText: "Guardar Cambios",
+      denyButtonText: "Editar Completo",
+      cancelButtonText: "Cerrar",
+      focusConfirm: false,
+      preConfirm: () => {
+        return {
+          estado: document.getElementById("swal-estado").value,
+          observaciones: document.getElementById("swal-observaciones").value
+        };
+      }
+    });
+
+    if (result.isConfirmed) {
+      const nuevoEstado = result.value.estado;
+      const nuevasObservaciones = result.value.observaciones;
+      const estadoAnterior = c.estado || "Pendiente";
+      
+      // Si hubo cambios, actualizar en la base de datos
+      if (nuevoEstado !== estadoAnterior || nuevasObservaciones !== (c.observaciones || "")) {
+        await db.collection("descuento_cheque").doc(id).update({
+          estado: nuevoEstado,
+          observaciones: nuevasObservaciones
+        });
+        
+        // Registrar en historial
+        await registrarHistorial(
+          "descuento_cheque", 
+          "editar", 
+          id, 
+          { 
+            estado_anterior: estadoAnterior, 
+            estado_nuevo: nuevoEstado,
+            observaciones_actualizadas: nuevasObservaciones !== (c.observaciones || "")
+          }
+        );
+        
+        // Recargar datos
+        cargarDescuentoCheque();
+        
+        Swal.fire(
+          "¡Actualizado!",
+          `Información de descuento de cheque actualizada`,
+          "success"
+        );
+      }
+    } else if (result.isDenied) {
+      // Lógica para edición completa
+      editarDescuentoChequeCompleto(id, c);
+    }
+  } catch (error) {
+    console.error("Error al obtener detalles:", error);
+    Swal.fire("Error", "No se pudieron cargar los detalles", "error");
+  }
+}
+
+// Función para editar completamente un descuento de cheque
+async function editarDescuentoChequeCompleto(id, datos) {
+  try {
+    const result = await Swal.fire({
+      title: 'Editar Descuento de Cheque',
+      html: `
+        <div class="form-group">
+          <label for="swal-fecha">Fecha</label>
+          <input type="date" id="swal-fecha" class="swal2-input" value="${datos.fecha}" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-fecha-toma">Fecha de Toma</label>
+          <input type="date" id="swal-fecha-toma" class="swal2-input" value="${datos.fecha_toma}" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-fecha-vencimiento">Fecha de Vencimiento</label>
+          <input type="date" id="swal-fecha-vencimiento" class="swal2-input" value="${datos.fecha_vencimiento}" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-transaccion">Número de transacción</label>
+          <input type="text" id="swal-transaccion" class="swal2-input" value="${datos.transaccion || ''}">
+        </div>
+        <div class="form-group">
+          <label for="swal-monto">Monto</label>
+          <input type="number" id="swal-monto" class="swal2-input" value="${datos.monto}" step="any" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-tasa">Tasa %</label>
+          <input type="number" id="swal-tasa" class="swal2-input" value="${datos.tasa}" step="any" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-dias">Días</label>
+          <input type="number" id="swal-dias" class="swal2-input" value="${datos.dias}" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-comision">Comisión</label>
+          <input type="number" id="swal-comision" class="swal2-input" value="${datos.comision}" step="any" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-interes">Interés</label>
+          <input type="number" id="swal-interes" class="swal2-input" value="${datos.interes}" step="any" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-monto-descontado">Monto Descontado</label>
+          <input type="number" id="swal-monto-descontado" class="swal2-input" value="${datos.monto_descontado}" step="any" required>
+        </div>
+        <div class="form-group">
+          <label for="swal-estado">Estado</label>
+          <select id="swal-estado" class="swal2-input">
+            <option value="Pendiente" ${datos.estado === 'Pendiente' ? 'selected' : ''}>Pendiente</option>
+            <option value="Cobrado" ${datos.estado === 'Cobrado' ? 'selected' : ''}>Cobrado</option>
+            <option value="Rechazado" ${datos.estado === 'Rechazado' ? 'selected' : ''}>Rechazado</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="swal-observaciones">Observaciones</label>
+          <textarea id="swal-observaciones" class="swal2-textarea" style="width: 100%;">${datos.observaciones || ''}</textarea>
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        // Validar campos obligatorios
+        const monto = parseFloat(document.getElementById('swal-monto').value);
+        const tasa = parseFloat(document.getElementById('swal-tasa').value);
+        const dias = parseInt(document.getElementById('swal-dias').value);
+        const comision = parseFloat(document.getElementById('swal-comision').value);
+        const interes = parseFloat(document.getElementById('swal-interes').value);
+        const montoDescontado = parseFloat(document.getElementById('swal-monto-descontado').value);
+        
+        if (!document.getElementById('swal-fecha').value || 
+            !document.getElementById('swal-fecha-toma').value || 
+            !document.getElementById('swal-fecha-vencimiento').value || 
+            isNaN(monto) || isNaN(tasa) || isNaN(dias) || 
+            isNaN(comision) || isNaN(interes) || isNaN(montoDescontado)) {
+          Swal.showValidationMessage('Por favor completa todos los campos requeridos');
+          return false;
+        }
+        
+        return {
+          fecha: document.getElementById('swal-fecha').value,
+          fecha_toma: document.getElementById('swal-fecha-toma').value,
+          fecha_vencimiento: document.getElementById('swal-fecha-vencimiento').value,
+          transaccion: document.getElementById('swal-transaccion').value,
+          monto: monto,
+          tasa: tasa,
+          dias: dias,
+          comision: comision,
+          interes: interes,
+          monto_descontado: montoDescontado,
+          estado: document.getElementById('swal-estado').value,
+          observaciones: document.getElementById('swal-observaciones').value,
+        };
+      }
+    });
+    
+    if (result.isConfirmed) {
+      const nuevaData = result.value;
+      
+      // Actualizar el descuento de cheque
+      await db.collection('descuento_cheque').doc(id).update({
+        ...nuevaData,
+        timestamp: new Date() // Actualizar timestamp
+      });
+      
+      // Registrar en historial
+      await registrarHistorial(
+        "descuento_cheque", 
+        "editar", 
+        id, 
+        { 
+          datos_anteriores: datos,
+          datos_nuevos: nuevaData
+        }
+      );
+      
+      // Recargar datos
+      cargarDescuentoCheque();
+      
+      Swal.fire({
+        icon: 'success',
+        title: '¡Descuento de cheque actualizado!',
+        text: 'Los datos han sido actualizados correctamente.'
+      });
+    }
+  } catch (error) {
+    console.error('Error al editar descuento de cheque:', error);
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: 'No se pudo actualizar el descuento de cheque: ' + error.message
+    });
+  }
+}
+
+/**
+ * Carga los datos de las operaciones Cash to Cash y los muestra en la tabla correspondiente
+ */
+async function cargarCash() {
+  try {
+    const datos = await obtenerDatosConFiltro("cash_to_cash", null);
+    renderizarTablaCash(datos);
+    actualizarTablaPaginada("cash_to_cash", datos);
+  } catch (error) {
+    console.error("Error al cargar cash to cash:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "No se pudieron cargar los datos de Cash to Cash",
+    });
+  }
+}
+
+/**
+ * Renderiza la tabla de Cash to Cash con los datos proporcionados
+ * @param {Array} datos - Array con los datos de cash to cash
+ */
+function renderizarTablaCash(datos) {
+  const tabla = document.getElementById("tablaCash");
+  tabla.innerHTML = "";
+
+  datos.forEach((cash) => {
+    const fila = document.createElement("tr");
+    fila.innerHTML = `
+      <td>${formatearFecha(cash.fecha)}</td>
+      <td>${cash.cliente}</td>
+      <td>${formatearMonto(cash.montoUsd)} USD</td>
+      <td>${cash.comisionPorc}%</td>
+      <td>${formatearMonto(cash.comisionUsd)} USD</td>
+      <td class="estado-${cash.estado.toLowerCase()}">${cash.estado}</td>
+      <td>
+        <button class="btn-action" onclick="verDetallesCash('${cash.id}')">
+          <i class="fas fa-eye"></i>
+        </button>
+        <button class="btn-action" onclick="eliminarRegistro('cash_to_cash', '${cash.id}')">
+          <i class="fas fa-trash"></i>
+        </button>
+      </td>
+    `;
+    tabla.appendChild(fila);
+  });
+}
+
+/**
+ * Muestra los detalles de una operación Cash to Cash
+ * @param {string} id - ID de la operación
+ */
+async function verDetallesCash(id) {
+  try {
+    const doc = await firebase.firestore().collection("cash_to_cash").doc(id).get();
+    
+    if (doc.exists) {
+      const data = doc.data();
+      
+      Swal.fire({
+        title: "Detalles de Cash to Cash",
+        html: `
+          <div class="detalles-container">
+            <p><strong>Fecha:</strong> ${formatearFecha(data.fecha)}</p>
+            <p><strong>Cliente:</strong> ${data.cliente}</p>
+            <p><strong>Transacción:</strong> ${data.transaccion || "N/A"}</p>
+            <p><strong>Monto USD:</strong> ${formatearMonto(data.montoUsd)} USD</p>
+            <p><strong>Comisión %:</strong> ${data.comisionPorc}%</p>
+            <p><strong>Comisión USD:</strong> ${formatearMonto(data.comisionUsd)} USD</p>
+            <p><strong>Estado:</strong> ${data.estado}</p>
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: "Editar",
+        cancelButtonText: "Cerrar",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          editarCash(id);
+        }
+      });
+    } else {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se encontró la operación",
+      });
+    }
+  } catch (error) {
+    console.error("Error al obtener detalles:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "Error al cargar los detalles",
+    });
+  }
+}
+
+/**
+ * Abre el formulario para editar una operación Cash to Cash
+ * @param {string} id - ID de la operación
+ */
+async function editarCash(id) {
+  try {
+    const doc = await firebase.firestore().collection("cash_to_cash").doc(id).get();
+    
+    if (doc.exists) {
+      const data = doc.data();
+      
+      // Cargar datos en el formulario
+      document.getElementById("fechaCash").value = formatearFechaInput(data.fecha);
+      document.getElementById("clienteCash").value = data.cliente;
+      document.getElementById("transaccionCash").value = data.transaccion || "";
+      document.getElementById("montoUsdCash").value = data.montoUsd;
+      document.getElementById("comisionPorcCash").value = data.comisionPorc;
+      document.getElementById("comisionUsdCash").value = data.comisionUsd;
+      document.getElementById("estadoCash").value = data.estado;
+      
+      // Calcular comisión
+      document.getElementById("comisionUsdCashResult").textContent = formatearMonto(data.comisionUsd);
+      
+      // Mostrar botón para actualizar
+      const btnGuardar = document.querySelector("#formCash button[type='submit']");
+      btnGuardar.textContent = "Actualizar";
+      btnGuardar.dataset.id = id;
+      
+      // Mostrar módulo de Cash to Cash
+      mostrarModulo("cash_to_cash");
+      
+      // Scroll al formulario
+      document.getElementById("formCash").scrollIntoView({ behavior: "smooth" });
+    }
+  } catch (error) {
+    console.error("Error al editar Cash to Cash:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "No se pudo editar la operación",
+    });
+  }
+}
+
+/**
+ * Carga los datos de operaciones de Ingreso de Pesos y los muestra en la tabla
+ */
+async function cargarIngresoPesos() {
+  try {
+    const datos = await obtenerDatosConFiltro("ingreso_pesos", null);
+    
+    // Almacenar todos los datos para paginación y exportación
+    datosCompletos.ingreso_pesos = datos;
+    
+    // Actualizar estado de paginación
+    estadoPaginacion.ingreso_pesos.total = datos.length;
+    estadoPaginacion.ingreso_pesos.pagina = 1;
+    
+    // Renderizar la primera página
+    actualizarTablaPaginada("ingreso_pesos");
+  } catch (error) {
+    console.error("Error al cargar ingreso de pesos:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "No se pudieron cargar los datos de Ingreso de Pesos",
+    });
+  }
+}
+
+/**
+ * Renderiza la tabla de Ingreso de Pesos con los datos proporcionados
+ * @param {Array} datos - Array con los datos de ingreso de pesos
+ */
+function renderizarTablaIngresoPesos(datos) {
+  const tabla = document.getElementById("tablaIngresoPesos");
+  tabla.innerHTML = "";
+
+  if (datos.length === 0) {
+    tabla.innerHTML = '<tr><td colspan="8" style="text-align: center;">No hay registros de ingreso de pesos</td></tr>';
+    return;
+  }
+
+  datos.forEach((ingreso) => {
+    const fila = document.createElement("tr");
+    fila.innerHTML = `
+      <td>${formatearFecha(ingreso.fecha)}</td>
+      <td>${ingreso.cliente || "-"}</td>
+      <td>${ingreso.operador || "-"}</td>
+      <td>${formatearMonto(ingreso.montoArs)} ARS</td>
+      <td>${ingreso.comisionPorc}%</td>
+      <td>${formatearMonto(ingreso.comisionArs)} ARS</td>
+      <td class="estado-${ingreso.estado.toLowerCase()}">${ingreso.estado}</td>
+      <td>
+        <button class="btn-action" onclick="verDetallesIngresoPesos('${ingreso.id}')">
+          <i class="fas fa-eye"></i>
+        </button>
+        <button class="btn-action" onclick="eliminarRegistro('ingreso_pesos', '${ingreso.id}')">
+          <i class="fas fa-trash"></i>
+        </button>
+      </td>
+    `;
+    tabla.appendChild(fila);
+  });
+}
+
+/**
+ * Muestra los detalles de una operación de Ingreso de Pesos
+ * @param {string} id - ID de la operación
+ */
+async function verDetallesIngresoPesos(id) {
+  try {
+    const doc = await firebase.firestore().collection("ingreso_pesos").doc(id).get();
+    
+    if (doc.exists) {
+      const data = doc.data();
+      
+      Swal.fire({
+        title: "Detalles de Ingreso de Pesos",
+        html: `
+          <div class="detalles-container">
+            <p><strong>Fecha:</strong> ${formatearFecha(data.fecha)}</p>
+            <p><strong>Cliente:</strong> ${data.cliente || "-"}</p>
+            <p><strong>Operador:</strong> ${data.operador || "-"}</p>
+            <p><strong>Transacción:</strong> ${data.transaccion || "N/A"}</p>
+            <p><strong>Monto ARS:</strong> ${formatearMonto(data.montoArs)} ARS</p>
+            <p><strong>Comisión %:</strong> ${data.comisionPorc}%</p>
+            <p><strong>Comisión ARS:</strong> ${formatearMonto(data.comisionArs)} ARS</p>
+            <p><strong>Estado:</strong> ${data.estado}</p>
+          </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: "Editar",
+        cancelButtonText: "Cerrar",
+      }).then((result) => {
+        if (result.isConfirmed) {
+          editarIngresoPesos(id);
+        }
+      });
+    } else {
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "No se encontró la operación",
+      });
+    }
+  } catch (error) {
+    console.error("Error al obtener detalles:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "Error al cargar los detalles",
+    });
+  }
+}
+
+/**
+ * Abre el formulario para editar una operación de Ingreso de Pesos
+ * @param {string} id - ID de la operación
+ */
+async function editarIngresoPesos(id) {
+  try {
+    const doc = await firebase.firestore().collection("ingreso_pesos").doc(id).get();
+    
+    if (doc.exists) {
+      const data = doc.data();
+      
+      // Cargar datos en el formulario
+      document.getElementById("fechaIngreso").value = formatearFechaInput(data.fecha);
+      document.getElementById("clienteIngreso").value = data.cliente || "";
+      document.getElementById("operadorIngreso").value = data.operador || "";
+      document.getElementById("transaccionIngreso").value = data.transaccion || "";
+      document.getElementById("montoArsIngreso").value = data.montoArs;
+      document.getElementById("comisionPorcIngreso").value = data.comisionPorc;
+      document.getElementById("comisionArsIngreso").value = data.comisionArs;
+      document.getElementById("estadoIngreso").value = data.estado;
+      
+      // Calcular comisión
+      document.getElementById("comisionArsResult").textContent = formatearMonto(data.comisionArs);
+      
+      // Mostrar botón para actualizar
+      const btnGuardar = document.querySelector("#formIngresoPesos button[type='submit']");
+      btnGuardar.textContent = "Actualizar";
+      btnGuardar.dataset.id = id;
+      
+      // Mostrar módulo de Ingreso de Pesos
+      mostrarModulo("ingreso_pesos");
+      
+      // Scroll al formulario
+      document.getElementById("formIngresoPesos").scrollIntoView({ behavior: "smooth" });
+    }
+  } catch (error) {
+    console.error("Error al editar Ingreso de Pesos:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "No se pudo editar la operación",
+    });
+  }
+}
+
+/**
+ * Formatea una fecha para usarla en un input de tipo date
+ * @param {Date|string} fecha - Fecha a formatear
+ * @returns {string} Fecha formateada en formato YYYY-MM-DD
+ */
+function formatearFechaInput(fecha) {
+  if (!fecha) return "";
+  
+  const date = fecha instanceof Date ? fecha : new Date(fecha);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  
+  return `${year}-${month}-${day}`;
+}
+
+// Setup for Ingreso Pesos module calculations
+const setupIngresoPesosCalculos = () => {
+  const montoArsInput = document.getElementById("montoArsIngreso");
+  const comisionPorcInput = document.getElementById("comisionPorcIngreso");
+  const comisionArsInput = document.getElementById("comisionArsIngreso");
+  const comisionArsResult = document.getElementById("comisionArsResult");
+
+  // Function to calculate commission
+  const calcularComision = () => {
+    const montoArs = parseFloat(montoArsInput.value) || 0;
+    const comisionPorc = parseFloat(comisionPorcInput.value) || 0;
+
+    // Calculate commission in ARS
+    const comisionArs = (montoArs * comisionPorc) / 100;
+
+    // Display in the interface
+    comisionArsResult.textContent = comisionArs.toFixed(2);
+
+    // Set the hidden field
+    comisionArsInput.value = comisionArs;
+  };
+
+  // Configure events to update calculations when values change
+  [montoArsInput, comisionPorcInput].forEach((input) => {
+    input.addEventListener("input", calcularComision);
+  });
+};
+
+// Initialize calculations
+setupIngresoPesosCalculos();
+
+// Form handler for Ingreso Pesos
+const formIngresoPesos = document.getElementById("formIngresoPesos");
+formIngresoPesos.onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    // Verify required fields
+    const campos = [
+      "fechaIngreso",
+      "clienteIngreso",
+      "montoArsIngreso",
+      "comisionPorcIngreso",
+    ];
+
+    for (const campo of campos) {
+      if (!getVal(campo)) {
+        Swal.fire({
+          icon: "error",
+          title: "Campos incompletos",
+          text: "Por favor completa todos los campos requeridos",
+        });
+        return;
+      }
+    }
+
+    // Get form values
+    const fecha = getVal("fechaIngreso");
+    const cliente = getVal("clienteIngreso"); // Using client name directly as entered
+    const operadorId = getVal("operadorIngreso");
+    const transaccion = getVal("transaccionIngreso") || await generarNumeroTransaccion("ingreso_pesos");
+    const montoArs = parseFloat(getVal("montoArsIngreso"));
+    const comisionPorc = parseFloat(getVal("comisionPorcIngreso"));
+    const comisionArs = parseFloat(getVal("comisionArsIngreso"));
+    const estado = getVal("estadoIngreso");
+
+    // Get operator name if available
+    let operador = "";
+    if (operadorId) {
+      const operadorDoc = await db.collection("operadores").doc(operadorId).get();
+      if (operadorDoc.exists) {
+        operador = operadorDoc.data().nombre;
+      }
+    }
+
+    // Create data object
+    const datos = {
+      fecha,
+      cliente,
+      operador,
+      operador_id: operadorId,
+      transaccion,
+      montoArs,
+      comisionPorc,
+      comisionArs,
+      estado,
+      timestamp: new Date(),
+    };
+
+    // Save in Firestore
+    await db.collection("ingreso_pesos").add(datos);
+
+    // Register in history
+    await registrarHistorial("ingreso_pesos", "crear", transaccion, datos);
+
+    clearForm("formIngresoPesos");
+    setupIngresoPesosCalculos();
+    cargarIngresoPesos();
+
+    Swal.fire({
+      icon: "success",
+      title: "Éxito",
+      text: "Ingreso de pesos registrado correctamente",
+    });
+  } catch (error) {
+    console.error("Error al guardar ingreso de pesos:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "No se pudo guardar el ingreso de pesos: " + error.message,
+    });
+  }
+};
+
+// Función para editar una transferencia
+async function editarTransferencia(id) {
+  try {
+    const doc = await db.collection("transferencias").doc(id).get();
+    if (!doc.exists) {
+      Swal.fire("Error", "Transferencia no encontrada", "error");
+      return;
+    }
+
+    const t = doc.data();
+    editarTransferenciaCompleta(id, t);
+  } catch (error) {
+    console.error("Error al obtener datos para editar transferencia:", error);
+    Swal.fire({
+      icon: "error",
+      title: "Error",
+      text: "No se pudo obtener los datos de la transferencia: " + error.message,
+    });
   }
 }

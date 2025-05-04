@@ -137,41 +137,45 @@
             <div class="form-group">
               <label for="montoTrans">Monto ARS</label>
               <input
-                type="number"
+                type="text"
                 id="montoTrans"
                 placeholder="Monto ARS"
-                step="any"
                 required
+                pattern="[0-9]+(\.[0-9]{0,2})?"
+                inputmode="decimal"
               />
             </div>
             <div class="form-group">
               <label for="tcUsdBsAsTrans">TC USD BsAs</label>
               <input
-                type="number"
+                type="text"
                 id="tcUsdBsAsTrans"
                 placeholder="TC USD BsAs (referencia)"
-                step="any"
                 required
+                pattern="[0-9]+(\.[0-9]{0,2})?"
+                inputmode="decimal"
               />
             </div>
             <div class="form-group">
               <label for="tcUsdSaltaTrans">TC USD Salta</label>
               <input
-                type="number"
+                type="text"
                 id="tcUsdSaltaTrans"
                 placeholder="TC USD Salta (aplicado)"
-                step="any"
                 required
+                pattern="[0-9]+(\.[0-9]{0,2})?"
+                inputmode="decimal"
               />
             </div>
             <div class="form-group">
-              <label for="comisionArsTrans">Comisión ARS</label>
+              <label for="comisionUsdTrans">Comisión USD</label>
               <input
-                type="number"
-                id="comisionArsTrans"
-                placeholder="Comisión ARS"
-                step="any"
+                type="text"
+                id="comisionUsdTrans"
+                placeholder="Comisión USD"
                 required
+                pattern="[0-9]+(\.[0-9]{0,2})?"
+                inputmode="decimal"
               />
             </div>
 
@@ -188,11 +192,24 @@
                 <label>Cambio a USD:</label>
                 <span id="cambioUsdResult">0</span>
               </div>
+              <div class="result-item">
+                <label>Comisión ARS:</label>
+                <span id="comisionArsResult">0</span>
+              </div>
             </div>
 
             <input type="hidden" id="cambioUsdTrans" />
             <input type="hidden" id="difTcTrans" />
             <input type="hidden" id="montoNetoTrans" />
+            <input type="hidden" id="comisionArsTrans" />
+
+            <div class="form-group">
+              <label for="tipoTransaccion">Tipo de Transacción</label>
+              <select id="tipoTransaccion">
+                <option value="envio">Envío</option>
+                <option value="recibo">Recibo</option>
+              </select>
+            </div>
 
             <div class="form-group">
               <label for="recepcionadaTrans">Estado</label>
@@ -203,14 +220,6 @@
               </select>
             </div>
 
-            <div class="form-group">
-              <label for="transaccionTrans">Número de transacción</label>
-              <input
-                type="text"
-                id="transaccionTrans"
-                placeholder="Número de transacción"
-              />
-            </div>
             <div class="form-group">
               <label for="comentarioTrans">Comentario</label>
               <input
@@ -306,6 +315,13 @@
               </select>
             </div>
             <div class="form-group">
+              <label for="tipoCable">Tipo de Cable</label>
+              <select id="tipoCable">
+                <option value="subida">Subida</option>
+                <option value="bajada">Bajada</option>
+              </select>
+            </div>
+            <div class="form-group">
               <label for="transaccionCable">Transacción</label>
               <input
                 type="text"
@@ -359,6 +375,15 @@
                 <option value="OK">OK</option>
                 <option value="Cancelado">Cancelado</option>
               </select>
+            </div>
+
+            <div class="form-group">
+              <label for="notasCable">Notas</label>
+              <textarea
+                id="notasCable"
+                placeholder="Notas adicionales"
+                rows="3"
+              ></textarea>
             </div>
 
             <div class="form-group form-buttons">
@@ -529,9 +554,12 @@
             </div>
             <div class="form-group">
               <label for="clienteIngreso">Cliente</label>
-              <select id="clienteIngreso" required>
-                <option value="">Seleccione Cliente</option>
-              </select>
+              <input
+                type="text"
+                id="clienteIngreso"
+                placeholder="Nombre del cliente"
+                required
+              />
             </div>
             <div class="form-group">
               <label for="operadorIngreso">Operador</label>
@@ -627,6 +655,14 @@
               <input type="date" id="fechaCheque" required />
             </div>
             <div class="form-group">
+              <label for="fechaTomaCheque">Fecha de Toma</label>
+              <input type="date" id="fechaTomaCheque" required />
+            </div>
+            <div class="form-group">
+              <label for="fechaVencimientoCheque">Fecha de Vencimiento</label>
+              <input type="date" id="fechaVencimientoCheque" required />
+            </div>
+            <div class="form-group">
               <label for="clienteCheque">Cliente</label>
               <select id="clienteCheque" required>
                 <option value="">Seleccione Cliente</option>
@@ -714,6 +750,8 @@
             <thead>
               <tr>
                 <th>Fecha</th>
+                <th>Fecha Toma</th>
+                <th>Vencimiento</th>
                 <th>Cliente</th>
                 <th>Monto</th>
                 <th>Tasa %</th>
