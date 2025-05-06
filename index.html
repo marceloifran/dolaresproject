@@ -16,6 +16,13 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
     />
+    <!-- Bootstrap Icons -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css"
+    />
+    <!-- SheetJS (XLSX) para exportar Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   </head>
   <body>
     <div class="header-container">
@@ -117,6 +124,13 @@
               <label for="operadorTrans">Operador</label>
               <select id="operadorTrans" required>
                 <option value="">Seleccione Operador</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="tipoTransaccionTrans">Tipo de Transacción</label>
+              <select id="tipoTransaccionTrans" required>
+                <option value="envio">Envío</option>
+                <option value="recibo">Recibo</option>
               </select>
             </div>
             <div class="form-group">
@@ -300,19 +314,17 @@
               <input type="date" id="fechaCable" required />
             </div>
             <div class="form-group">
+              <label for="tipoCable">Tipo de Cable</label>
+              <select id="tipoCable" required>
+                <option value="subida">Subida</option>
+                <option value="bajada">Bajada</option>
+              </select>
+            </div>
+            <div class="form-group">
               <label for="clienteCable">Cliente</label>
               <select id="clienteCable" required>
                 <option value="">Seleccione Cliente</option>
               </select>
-            </div>
-            <div class="form-group">
-              <label for="transaccionCable">Transacción</label>
-              <input
-                type="text"
-                id="transaccionCable"
-                placeholder="Transacción"
-                required
-              />
             </div>
             <div class="form-group">
               <label for="montoUsdCable">Monto USD</label>
@@ -322,6 +334,15 @@
                 placeholder="Monto USD"
                 step="any"
                 required
+              />
+            </div>
+            <div class="form-group">
+              <label for="montoCorregidoUsdCable">Monto Corregido USD</label>
+              <input
+                type="number"
+                id="montoCorregidoUsdCable"
+                placeholder="Monto Corregido USD (opcional)"
+                step="any"
               />
             </div>
             <div class="form-group">
@@ -359,6 +380,15 @@
                 <option value="OK">OK</option>
                 <option value="Cancelado">Cancelado</option>
               </select>
+            </div>
+
+            <div class="form-group">
+              <label for="comentarioCable">Comentario</label>
+              <input
+                type="text"
+                id="comentarioCable"
+                placeholder="Comentario"
+              />
             </div>
 
             <div class="form-group form-buttons">
@@ -402,6 +432,7 @@
             <thead>
               <tr>
                 <th>Fecha</th>
+                <th>Cable</th>
                 <th>Cliente</th>
                 <th>Monto USD</th>
                 <th>Comisión %</th>
@@ -440,6 +471,13 @@
               <label for="clienteCash">Cliente</label>
               <select id="clienteCash" required>
                 <option value="">Seleccione Cliente</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="tipoTransaccionCash">Tipo de Transacción</label>
+              <select id="tipoTransaccionCash" required>
+                <option value="envio">Envío</option>
+                <option value="recibo">Recibo</option>
               </select>
             </div>
             <div class="form-group">
@@ -498,16 +536,53 @@
               </select>
             </div>
 
+            <div class="form-group">
+              <label for="comentarioCash">Comentario</label>
+              <input type="text" id="comentarioCash" placeholder="Comentario" />
+            </div>
+
             <div class="form-group form-buttons">
               <button type="submit" class="btn-primary">
                 <i class="fas fa-save"></i> Guardar
               </button>
             </div>
           </form>
+
+          <!-- Controles de tabla con exportación y paginación -->
+          <div class="table-controls">
+            <div class="export-section">
+              <button id="btnExportarCash" class="export-btn">
+                <i class="fas fa-file-export"></i> Exportar
+              </button>
+              <div class="export-dropdown">
+                <button onclick="exportarDatos('cash_to_cash', 'excel')">
+                  <i class="fas fa-file-excel"></i> Excel
+                </button>
+                <button onclick="exportarDatos('cash_to_cash', 'pdf')">
+                  <i class="fas fa-file-pdf"></i> PDF
+                </button>
+              </div>
+            </div>
+
+            <div class="pagination-controls">
+              <span>Registros por página:</span>
+              <select
+                id="pageSizeCash"
+                onchange="cambiarRegistrosPorPagina('cash_to_cash', this.value)"
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+          </div>
+
           <table>
             <thead>
               <tr>
                 <th>Fecha</th>
+                <th>Número</th>
                 <th>Cliente</th>
                 <th>Monto USD</th>
                 <th>Comisión %</th>
@@ -518,6 +593,24 @@
             </thead>
             <tbody id="tablaCash"></tbody>
           </table>
+
+          <!-- Controles de paginación -->
+          <div class="pagination">
+            <button
+              id="btnAnteriorCash"
+              onclick="paginaAnterior('cash_to_cash')"
+              disabled
+            >
+              <i class="fas fa-chevron-left"></i> Anterior
+            </button>
+            <span id="paginaActualCash">Página 1</span>
+            <button
+              id="btnSiguienteCash"
+              onclick="paginaSiguiente('cash_to_cash')"
+            >
+              Siguiente <i class="fas fa-chevron-right"></i>
+            </button>
+          </div>
         </div>
 
         <div class="modulo" id="ingreso_pesos">
@@ -601,6 +694,34 @@
               </button>
             </div>
           </form>
+
+          <!-- Controles de tabla con exportación y paginación -->
+          <div class="table-controls">
+            <div class="export-section">
+              <button id="btnExportarIngresoPesos" class="export-btn">
+                <i class="fas fa-file-export"></i> Exportar
+              </button>
+              <div class="export-dropdown">
+                <button onclick="exportarExcel('ingreso_pesos')">
+                  <i class="fas fa-file-excel"></i> Excel
+                </button>
+              </div>
+            </div>
+
+            <div class="pagination-controls">
+              <span>Registros por página:</span>
+              <select
+                id="pageSizeIngresoPesos"
+                onchange="cambiarRegistrosPorPagina('ingreso_pesos', this.value)"
+              >
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+          </div>
+
           <table>
             <thead>
               <tr>
@@ -616,6 +737,24 @@
             </thead>
             <tbody id="tablaIngresoPesos"></tbody>
           </table>
+
+          <!-- Controles de paginación -->
+          <div class="pagination">
+            <button
+              id="btnAnteriorIngreso_pesos"
+              onclick="paginaAnterior('ingreso_pesos')"
+              disabled
+            >
+              <i class="fas fa-chevron-left"></i> Anterior
+            </button>
+            <span id="paginaActualIngreso_pesos">Página 1</span>
+            <button
+              id="btnSiguienteIngreso_pesos"
+              onclick="paginaSiguiente('ingreso_pesos')"
+            >
+              Siguiente <i class="fas fa-chevron-right"></i>
+            </button>
+          </div>
         </div>
 
         <!-- Nueva sección para Descuento de Cheques -->
@@ -623,14 +762,34 @@
           <h2>Descuento de Cheques</h2>
           <form id="formDescuentoCheque">
             <div class="form-group">
-              <label for="fechaCheque">Fecha</label>
+              <label for="fechaCheque">Fecha de Operación</label>
               <input type="date" id="fechaCheque" required />
             </div>
             <div class="form-group">
               <label for="clienteCheque">Cliente</label>
-              <select id="clienteCheque" required>
-                <option value="">Seleccione Cliente</option>
-              </select>
+              <input
+                type="text"
+                id="nombreClienteCheque"
+                placeholder="Nombre del cliente"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label for="fechaTomaCheque">Fecha de Toma</label>
+              <input type="date" id="fechaTomaCheque" required />
+            </div>
+            <div class="form-group">
+              <label for="fechaVencimientoCheque">Fecha de Vencimiento</label>
+              <input type="date" id="fechaVencimientoCheque" required />
+            </div>
+            <div class="form-group">
+              <label for="diasCheque">Días</label>
+              <input
+                type="number"
+                id="diasCheque"
+                placeholder="Días (calculado automáticamente)"
+                readonly
+              />
             </div>
             <div class="form-group">
               <label for="montoCheque">Monto</label>
@@ -653,22 +812,13 @@
               />
             </div>
             <div class="form-group">
-              <label for="diasCheque">Días</label>
-              <input
-                type="number"
-                id="diasCheque"
-                placeholder="Días"
-                required
-              />
-            </div>
-            <div class="form-group">
               <label for="comisionCheque">Comisión</label>
               <input
                 type="number"
                 id="comisionCheque"
                 placeholder="Comisión"
                 step="any"
-                required
+                readonly
               />
             </div>
 
@@ -851,109 +1001,74 @@
         <div class="modulo" id="historial_cambios">
           <h2>Historial de Cambios</h2>
 
-          <div class="filter-section">
-            <div class="form-group">
-              <label for="fechaDesdeHistorial">Desde</label>
-              <input type="date" id="fechaDesdeHistorial" />
+          <div class="table-controls">
+            <div class="table-info">
+              <span id="contadorHistorial">0 registros</span>
             </div>
-            <div class="form-group">
-              <label for="fechaHastaHistorial">Hasta</label>
-              <input type="date" id="fechaHastaHistorial" />
-            </div>
-
-            <div class="form-group">
-              <label for="tipoRegistroHistorial">Tipo de registro</label>
-              <select id="tipoRegistroHistorial">
-                <option value="todos">Todos los registros</option>
-                <option value="transferencias">Transferencias</option>
-                <option value="cables">Cables</option>
-                <option value="cash_to_cash">Cash to Cash</option>
-                <option value="ingreso_pesos">Ingreso Pesos</option>
-                <option value="descuento_cheque">Descuento Cheque</option>
-                <option value="operadores">Operadores</option>
-                <option value="clientes">Clientes</option>
-                <option value="cuentaCorrientePesos">Cuenta Corriente Pesos</option>
-                <option value="cuentaCorrienteDolares">Cuenta Corriente Dólares</option>
+            <div class="pagination-controls">
+              <select
+                id="registrosPorPaginaHistorial"
+                onchange="cambiarRegistrosPorPagina('historial', this.value)"
+              >
+                <option value="10">10 por página</option>
+                <option value="25">25 por página</option>
+                <option value="50">50 por página</option>
+                <option value="100">100 por página</option>
               </select>
-            </div>
-
-            <div class="form-group">
-              <label for="tipoAccionHistorial">Tipo de acción</label>
-              <select id="tipoAccionHistorial">
-                <option value="todos">Todas las acciones</option>
-                <option value="crear">Creaciones</option>
-                <option value="editar">Modificaciones</option>
-                <option value="eliminar">Eliminaciones</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <button id="btnFiltrarHistorial" class="btn-primary">
-                <i class="fas fa-filter"></i> Filtrar
+              <button
+                id="btnAnteriorHistorial"
+                onclick="paginaAnterior('historial')"
+                disabled
+              >
+                <i class="fas fa-chevron-left"></i> Anterior
               </button>
-            </div>
-
-            <div class="export-section">
-              <button id="btnExportarHistorial" class="export-btn">
-                <i class="fas fa-file-export"></i> Exportar
+              <span id="paginaActualHistorial">Página 1</span>
+              <button
+                id="btnSiguienteHistorial"
+                onclick="paginaSiguiente('historial')"
+                disabled
+              >
+                Siguiente <i class="fas fa-chevron-right"></i>
               </button>
-              <div class="export-dropdown">
-                <button onclick="exportarDatos('historial', 'excel')">
-                  <i class="fas fa-file-excel"></i> Excel
-                </button>
-                <button onclick="exportarDatos('historial', 'pdf')">
-                  <i class="fas fa-file-pdf"></i> PDF
-                </button>
-              </div>
+              <button class="btn-export" onclick="exportarExcel('historial')">
+                <i class="fas fa-file-excel"></i> Exportar
+              </button>
             </div>
           </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Usuario</th>
-                <th>Tipo de Registro</th>
-                <th>Acción</th>
-                <th>ID Registro</th>
-                <th>Detalles</th>
-              </tr>
-            </thead>
-            <tbody id="tablaHistorial"></tbody>
-          </table>
-
-          <!-- Controles de paginación -->
-          <div class="pagination">
-            <button
-              id="btnAnteriorHistorial"
-              onclick="paginaAnterior('historial')"
-              disabled
-            >
-              <i class="fas fa-chevron-left"></i> Anterior
-            </button>
-            <span id="paginaActualHistorial">Página 1</span>
-            <button
-              id="btnSiguienteHistorial"
-              onclick="paginaSiguiente('historial')"
-            >
-              Siguiente <i class="fas fa-chevron-right"></i>
-            </button>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Usuario</th>
+                  <th>Acción</th>
+                  <th>Módulo</th>
+                  <th>ID</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tablaHistorialBody"></tbody>
+            </table>
           </div>
         </div>
 
         <!-- Nuevo módulo para Cuenta Corriente de clientes -->
         <div class="modulo" id="cuenta_corriente">
           <h2>Cuenta Corriente de Clientes</h2>
-          
+
           <div class="tabs">
-            <button class="tab-btn active" onclick="mostrarTab('cuentaPesosTab')">
+            <button
+              class="tab-btn active"
+              onclick="mostrarTab('cuentaPesosTab')"
+            >
               Cuenta en Pesos
             </button>
             <button class="tab-btn" onclick="mostrarTab('cuentaDolaresTab')">
               Cuenta en USD
             </button>
           </div>
-          
+
           <!-- Tab para cuenta en pesos -->
           <div id="cuentaPesosTab" class="tab-content active">
             <div class="filter-section">
@@ -976,22 +1091,15 @@
                   <i class="fas fa-filter"></i> Filtrar
                 </button>
               </div>
-              
+
+              <!-- Sección para exportar cuenta corriente pesos -->
               <div class="export-section">
-                <button id="btnExportarCCPesos" class="export-btn">
-                  <i class="fas fa-file-export"></i> Exportar
+                <button id="btnExportarCCPesos" class="btn-export">
+                  <i class="fas fa-file-export"></i> Exportar a Excel
                 </button>
-                <div class="export-dropdown">
-                  <button onclick="exportarDatos('cuentaCorrientePesos', 'excel')">
-                    <i class="fas fa-file-excel"></i> Excel
-                  </button>
-                  <button onclick="exportarDatos('cuentaCorrientePesos', 'pdf')">
-                    <i class="fas fa-file-pdf"></i> PDF
-                  </button>
-                </div>
               </div>
             </div>
-            
+
             <!-- Formulario para agregar movimientos -->
             <form id="formMovimientoPesos">
               <h3>Nuevo Movimiento</h3>
@@ -1015,15 +1123,30 @@
               </div>
               <div class="form-group">
                 <label for="montoDebitoPesos">Monto Débito</label>
-                <input type="number" id="montoDebitoPesos" placeholder="Monto Débito" step="any" />
+                <input
+                  type="number"
+                  id="montoDebitoPesos"
+                  placeholder="Monto Débito"
+                  step="any"
+                />
               </div>
               <div class="form-group">
                 <label for="montoCreditoPesos">Monto Crédito</label>
-                <input type="number" id="montoCreditoPesos" placeholder="Monto Crédito" step="any" />
+                <input
+                  type="number"
+                  id="montoCreditoPesos"
+                  placeholder="Monto Crédito"
+                  step="any"
+                />
               </div>
               <div class="form-group">
                 <label for="conceptoMovimientoPesos">Concepto</label>
-                <input type="text" id="conceptoMovimientoPesos" placeholder="Concepto" required />
+                <input
+                  type="text"
+                  id="conceptoMovimientoPesos"
+                  placeholder="Concepto"
+                  required
+                />
               </div>
               <div class="form-group form-buttons">
                 <button type="submit" class="btn-primary">
@@ -1031,7 +1154,7 @@
                 </button>
               </div>
             </form>
-            
+
             <table>
               <thead>
                 <tr>
@@ -1049,26 +1172,35 @@
               <tbody id="tablaCuentaCorrientePesos"></tbody>
               <tfoot>
                 <tr>
-                  <td colspan="5" class="text-right"><strong>SALDO TOTAL</strong></td>
+                  <td colspan="5" class="text-right">
+                    <strong>SALDO TOTAL</strong>
+                  </td>
                   <td id="saldoTotalPesos">0,00</td>
                   <td>$</td>
                   <td colspan="2"></td>
                 </tr>
               </tfoot>
             </table>
-            
+
             <!-- Controles de paginación -->
             <div class="pagination">
-              <button id="btnAnteriorCCPesos" onclick="paginaAnterior('cuentaCorrientePesos')" disabled>
+              <button
+                id="btnAnteriorCCPesos"
+                onclick="paginaAnterior('cuentaCorrientePesos')"
+                disabled
+              >
                 <i class="fas fa-chevron-left"></i> Anterior
               </button>
               <span id="paginaActualCCPesos">Página 1</span>
-              <button id="btnSiguienteCCPesos" onclick="paginaSiguiente('cuentaCorrientePesos')">
+              <button
+                id="btnSiguienteCCPesos"
+                onclick="paginaSiguiente('cuentaCorrientePesos')"
+              >
                 Siguiente <i class="fas fa-chevron-right"></i>
               </button>
             </div>
           </div>
-          
+
           <!-- Tab para cuenta en dólares -->
           <div id="cuentaDolaresTab" class="tab-content">
             <div class="filter-section">
@@ -1091,22 +1223,15 @@
                   <i class="fas fa-filter"></i> Filtrar
                 </button>
               </div>
-              
+
+              <!-- Sección para exportar cuenta corriente dólares -->
               <div class="export-section">
-                <button id="btnExportarCCDolares" class="export-btn">
-                  <i class="fas fa-file-export"></i> Exportar
+                <button id="btnExportarCCDolares" class="btn-export">
+                  <i class="fas fa-file-export"></i> Exportar a Excel
                 </button>
-                <div class="export-dropdown">
-                  <button onclick="exportarDatos('cuentaCorrienteDolares', 'excel')">
-                    <i class="fas fa-file-excel"></i> Excel
-                  </button>
-                  <button onclick="exportarDatos('cuentaCorrienteDolares', 'pdf')">
-                    <i class="fas fa-file-pdf"></i> PDF
-                  </button>
-                </div>
               </div>
             </div>
-            
+
             <!-- Formulario para agregar movimientos -->
             <form id="formMovimientoDolares">
               <h3>Nuevo Movimiento</h3>
@@ -1130,15 +1255,30 @@
               </div>
               <div class="form-group">
                 <label for="montoDebitoDolares">Monto Débito</label>
-                <input type="number" id="montoDebitoDolares" placeholder="Monto Débito" step="any" />
+                <input
+                  type="number"
+                  id="montoDebitoDolares"
+                  placeholder="Monto Débito"
+                  step="any"
+                />
               </div>
               <div class="form-group">
                 <label for="montoCreditoDolares">Monto Crédito</label>
-                <input type="number" id="montoCreditoDolares" placeholder="Monto Crédito" step="any" />
+                <input
+                  type="number"
+                  id="montoCreditoDolares"
+                  placeholder="Monto Crédito"
+                  step="any"
+                />
               </div>
               <div class="form-group">
                 <label for="conceptoMovimientoDolares">Concepto</label>
-                <input type="text" id="conceptoMovimientoDolares" placeholder="Concepto" required />
+                <input
+                  type="text"
+                  id="conceptoMovimientoDolares"
+                  placeholder="Concepto"
+                  required
+                />
               </div>
               <div class="form-group form-buttons">
                 <button type="submit" class="btn-primary">
@@ -1146,7 +1286,7 @@
                 </button>
               </div>
             </form>
-            
+
             <table>
               <thead>
                 <tr>
@@ -1164,21 +1304,30 @@
               <tbody id="tablaCuentaCorrienteDolares"></tbody>
               <tfoot>
                 <tr>
-                  <td colspan="5" class="text-right"><strong>SALDO TOTAL</strong></td>
+                  <td colspan="5" class="text-right">
+                    <strong>SALDO TOTAL</strong>
+                  </td>
                   <td id="saldoTotalDolares">0,00</td>
                   <td>USD</td>
                   <td colspan="2"></td>
                 </tr>
               </tfoot>
             </table>
-            
+
             <!-- Controles de paginación -->
             <div class="pagination">
-              <button id="btnAnteriorCCDolares" onclick="paginaAnterior('cuentaCorrienteDolares')" disabled>
+              <button
+                id="btnAnteriorCCDolares"
+                onclick="paginaAnterior('cuentaCorrienteDolares')"
+                disabled
+              >
                 <i class="fas fa-chevron-left"></i> Anterior
               </button>
               <span id="paginaActualCCDolares">Página 1</span>
-              <button id="btnSiguienteCCDolares" onclick="paginaSiguiente('cuentaCorrienteDolares')">
+              <button
+                id="btnSiguienteCCDolares"
+                onclick="paginaSiguiente('cuentaCorrienteDolares')"
+              >
                 Siguiente <i class="fas fa-chevron-right"></i>
               </button>
             </div>
