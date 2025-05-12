@@ -126,6 +126,13 @@
               </select>
             </div>
             <div class="form-group">
+              <label for="tipoTransaccionTrans">Tipo de Transacción</label>
+              <select id="tipoTransaccionTrans" required>
+                <option value="envio">Envío</option>
+                <option value="recibo">Recibo</option>
+              </select>
+            </div>
+            <div class="form-group">
               <label for="destinatarioTrans">Destinatario</label>
               <input
                 type="text"
@@ -203,14 +210,6 @@
               </select>
             </div>
 
-            <div class="form-group">
-              <label for="transaccionTrans">Número de transacción</label>
-              <input
-                type="text"
-                id="transaccionTrans"
-                placeholder="Número de transacción"
-              />
-            </div>
             <div class="form-group">
               <label for="comentarioTrans">Comentario</label>
               <input
@@ -303,6 +302,13 @@
               <label for="clienteCable">Cliente</label>
               <select id="clienteCable" required>
                 <option value="">Seleccione Cliente</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="tipoTransaccionCable">Tipo de Transacción</label>
+              <select id="tipoTransaccionCable" required>
+                <option value="subida">Subida de Cable</option>
+                <option value="bajada">Bajada de Cable</option>
               </select>
             </div>
             <div class="form-group">
@@ -403,6 +409,7 @@
               <tr>
                 <th>Fecha</th>
                 <th>Cliente</th>
+                <th>Tipo</th>
                 <th>Monto USD</th>
                 <th>Comisión %</th>
                 <th>Comisión USD</th>
@@ -440,6 +447,13 @@
               <label for="clienteCash">Cliente</label>
               <select id="clienteCash" required>
                 <option value="">Seleccione Cliente</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="tipoTransaccionCash">Tipo de Transacción</label>
+              <select id="tipoTransaccionCash" required>
+                <option value="envio">Envío</option>
+                <option value="recibo">Recibo</option>
               </select>
             </div>
             <div class="form-group">
@@ -509,6 +523,7 @@
               <tr>
                 <th>Fecha</th>
                 <th>Cliente</th>
+                <th>Tipo</th>
                 <th>Monto USD</th>
                 <th>Comisión %</th>
                 <th>Comisión USD</th>
@@ -528,10 +543,18 @@
               <input type="date" id="fechaIngreso" required />
             </div>
             <div class="form-group">
-              <label for="clienteIngreso">Cliente</label>
-              <select id="clienteIngreso" required>
+              <label for="clienteIngreso">Cliente (Sistema)</label>
+              <select id="clienteIngreso">
                 <option value="">Seleccione Cliente</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label for="clienteManualIngreso">Cliente (Manual)</label>
+              <input
+                type="text"
+                id="clienteManualIngreso"
+                placeholder="Nombre del cliente"
+              />
             </div>
             <div class="form-group">
               <label for="operadorIngreso">Operador</label>
@@ -623,8 +646,12 @@
           <h2>Descuento de Cheques</h2>
           <form id="formDescuentoCheque">
             <div class="form-group">
-              <label for="fechaCheque">Fecha</label>
-              <input type="date" id="fechaCheque" required />
+              <label for="fechaTomaCheque">Fecha de Toma</label>
+              <input type="date" id="fechaTomaCheque" required />
+            </div>
+            <div class="form-group">
+              <label for="fechaVencimientoCheque">Fecha de Vencimiento</label>
+              <input type="date" id="fechaVencimientoCheque" required />
             </div>
             <div class="form-group">
               <label for="clienteCheque">Cliente</label>
@@ -643,7 +670,7 @@
               />
             </div>
             <div class="form-group">
-              <label for="tasaCheque">Tasa %</label>
+              <label for="tasaCheque">Tasa % Anual</label>
               <input
                 type="number"
                 id="tasaCheque"
@@ -658,7 +685,17 @@
                 type="number"
                 id="diasCheque"
                 placeholder="Días"
-                required
+                readonly
+              />
+            </div>
+            <div class="form-group">
+              <label for="interesDisarioCheque">Interés Diario</label>
+              <input
+                type="number"
+                id="interesDisarioCheque"
+                placeholder="Interés Diario"
+                step="any"
+                readonly
               />
             </div>
             <div class="form-group">
@@ -674,7 +711,7 @@
 
             <div class="results-preview">
               <div class="result-item">
-                <label>Interés:</label>
+                <label>Interés Total:</label>
                 <span id="interesResult">0</span>
               </div>
               <div class="result-item">
@@ -713,7 +750,8 @@
           <table>
             <thead>
               <tr>
-                <th>Fecha</th>
+                <th>Fecha Toma</th>
+                <th>Vencimiento</th>
                 <th>Cliente</th>
                 <th>Monto</th>
                 <th>Tasa %</th>
@@ -872,8 +910,12 @@
                 <option value="descuento_cheque">Descuento Cheque</option>
                 <option value="operadores">Operadores</option>
                 <option value="clientes">Clientes</option>
-                <option value="cuentaCorrientePesos">Cuenta Corriente Pesos</option>
-                <option value="cuentaCorrienteDolares">Cuenta Corriente Dólares</option>
+                <option value="cuentaCorrientePesos">
+                  Cuenta Corriente Pesos
+                </option>
+                <option value="cuentaCorrienteDolares">
+                  Cuenta Corriente Dólares
+                </option>
               </select>
             </div>
 
@@ -944,23 +986,34 @@
         <!-- Nuevo módulo para Cuenta Corriente de clientes -->
         <div class="modulo" id="cuenta_corriente">
           <h2>Cuenta Corriente de Clientes</h2>
-          
+
           <div class="tabs">
-            <button class="tab-btn active" onclick="mostrarTab('cuentaPesosTab')">
+            <button
+              class="tab-btn active"
+              onclick="mostrarTab('cuentaPesosTab')"
+            >
               Cuenta en Pesos
             </button>
             <button class="tab-btn" onclick="mostrarTab('cuentaDolaresTab')">
               Cuenta en USD
             </button>
           </div>
-          
+
           <!-- Tab para cuenta en pesos -->
           <div id="cuentaPesosTab" class="tab-content active">
             <div class="filter-section">
               <div class="form-group">
-                <label for="clienteCCPesos">Cliente</label>
-                <select id="clienteCCPesos" required>
-                  <option value="">Seleccione Cliente</option>
+                <label for="tipoFiltroEntidadPesos">Tipo</label>
+                <select id="tipoFiltroEntidadPesos">
+                  <option value="">Todos</option>
+                  <option value="Cliente">Cliente</option>
+                  <option value="Operador">Operador</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="clienteCCPesos">Entidad</label>
+                <select id="clienteCCPesos">
+                  <option value="">Seleccione</option>
                 </select>
               </div>
               <div class="form-group">
@@ -976,22 +1029,26 @@
                   <i class="fas fa-filter"></i> Filtrar
                 </button>
               </div>
-              
+
               <div class="export-section">
                 <button id="btnExportarCCPesos" class="export-btn">
                   <i class="fas fa-file-export"></i> Exportar
                 </button>
                 <div class="export-dropdown">
-                  <button onclick="exportarDatos('cuentaCorrientePesos', 'excel')">
+                  <button
+                    onclick="exportarDatos('cuentaCorrientePesos', 'excel')"
+                  >
                     <i class="fas fa-file-excel"></i> Excel
                   </button>
-                  <button onclick="exportarDatos('cuentaCorrientePesos', 'pdf')">
+                  <button
+                    onclick="exportarDatos('cuentaCorrientePesos', 'pdf')"
+                  >
                     <i class="fas fa-file-pdf"></i> PDF
                   </button>
                 </div>
               </div>
             </div>
-            
+
             <!-- Formulario para agregar movimientos -->
             <form id="formMovimientoPesos">
               <h3>Nuevo Movimiento</h3>
@@ -1000,9 +1057,17 @@
                 <input type="date" id="fechaMovimientoPesos" required />
               </div>
               <div class="form-group">
-                <label for="clienteMovimientoPesos">Cliente</label>
-                <select id="clienteMovimientoPesos" required>
-                  <option value="">Seleccione Cliente</option>
+                <label for="tipoEntidadPesos">Tipo</label>
+                <select id="tipoEntidadPesos" required>
+                  <option value="">Seleccione Tipo</option>
+                  <option value="Cliente">Cliente</option>
+                  <option value="Operador">Operador</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="entidadMovimientoPesos">Entidad</label>
+                <select id="entidadMovimientoPesos" required>
+                  <option value="">Seleccione</option>
                 </select>
               </div>
               <div class="form-group">
@@ -1010,20 +1075,35 @@
                 <select id="tipoMovimientoPesos" required>
                   <option value="">Seleccione Tipo</option>
                   <option value="NOTA DE DEBITO">NOTA DE DEBITO</option>
-                  <option value="ARREGLO CREDITO">ARREGLO CREDITO</option>
+                  <option value="NOTA DE CREDITO">NOTA DE CREDITO</option>
                 </select>
               </div>
               <div class="form-group">
                 <label for="montoDebitoPesos">Monto Débito</label>
-                <input type="number" id="montoDebitoPesos" placeholder="Monto Débito" step="any" />
+                <input
+                  type="number"
+                  id="montoDebitoPesos"
+                  placeholder="Monto Débito"
+                  step="any"
+                />
               </div>
               <div class="form-group">
                 <label for="montoCreditoPesos">Monto Crédito</label>
-                <input type="number" id="montoCreditoPesos" placeholder="Monto Crédito" step="any" />
+                <input
+                  type="number"
+                  id="montoCreditoPesos"
+                  placeholder="Monto Crédito"
+                  step="any"
+                />
               </div>
               <div class="form-group">
                 <label for="conceptoMovimientoPesos">Concepto</label>
-                <input type="text" id="conceptoMovimientoPesos" placeholder="Concepto" required />
+                <input
+                  type="text"
+                  id="conceptoMovimientoPesos"
+                  placeholder="Concepto"
+                  required
+                />
               </div>
               <div class="form-group form-buttons">
                 <button type="submit" class="btn-primary">
@@ -1031,7 +1111,7 @@
                 </button>
               </div>
             </form>
-            
+
             <table>
               <thead>
                 <tr>
@@ -1049,33 +1129,50 @@
               <tbody id="tablaCuentaCorrientePesos"></tbody>
               <tfoot>
                 <tr>
-                  <td colspan="5" class="text-right"><strong>SALDO TOTAL</strong></td>
+                  <td colspan="5" class="text-right">
+                    <strong>SALDO TOTAL</strong>
+                  </td>
                   <td id="saldoTotalPesos">0,00</td>
                   <td>$</td>
                   <td colspan="2"></td>
                 </tr>
               </tfoot>
             </table>
-            
+
             <!-- Controles de paginación -->
             <div class="pagination">
-              <button id="btnAnteriorCCPesos" onclick="paginaAnterior('cuentaCorrientePesos')" disabled>
+              <button
+                id="btnAnteriorCCPesos"
+                onclick="paginaAnterior('cuentaCorrientePesos')"
+                disabled
+              >
                 <i class="fas fa-chevron-left"></i> Anterior
               </button>
               <span id="paginaActualCCPesos">Página 1</span>
-              <button id="btnSiguienteCCPesos" onclick="paginaSiguiente('cuentaCorrientePesos')">
+              <button
+                id="btnSiguienteCCPesos"
+                onclick="paginaSiguiente('cuentaCorrientePesos')"
+              >
                 Siguiente <i class="fas fa-chevron-right"></i>
               </button>
             </div>
           </div>
-          
+
           <!-- Tab para cuenta en dólares -->
           <div id="cuentaDolaresTab" class="tab-content">
             <div class="filter-section">
               <div class="form-group">
-                <label for="clienteCCDolares">Cliente</label>
-                <select id="clienteCCDolares" required>
-                  <option value="">Seleccione Cliente</option>
+                <label for="tipoFiltroEntidadDolares">Tipo</label>
+                <select id="tipoFiltroEntidadDolares">
+                  <option value="">Todos</option>
+                  <option value="Cliente">Cliente</option>
+                  <option value="Operador">Operador</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="clienteCCDolares">Entidad</label>
+                <select id="clienteCCDolares">
+                  <option value="">Seleccione</option>
                 </select>
               </div>
               <div class="form-group">
@@ -1091,22 +1188,26 @@
                   <i class="fas fa-filter"></i> Filtrar
                 </button>
               </div>
-              
+
               <div class="export-section">
                 <button id="btnExportarCCDolares" class="export-btn">
                   <i class="fas fa-file-export"></i> Exportar
                 </button>
                 <div class="export-dropdown">
-                  <button onclick="exportarDatos('cuentaCorrienteDolares', 'excel')">
+                  <button
+                    onclick="exportarDatos('cuentaCorrienteDolares', 'excel')"
+                  >
                     <i class="fas fa-file-excel"></i> Excel
                   </button>
-                  <button onclick="exportarDatos('cuentaCorrienteDolares', 'pdf')">
+                  <button
+                    onclick="exportarDatos('cuentaCorrienteDolares', 'pdf')"
+                  >
                     <i class="fas fa-file-pdf"></i> PDF
                   </button>
                 </div>
               </div>
             </div>
-            
+
             <!-- Formulario para agregar movimientos -->
             <form id="formMovimientoDolares">
               <h3>Nuevo Movimiento</h3>
@@ -1115,9 +1216,17 @@
                 <input type="date" id="fechaMovimientoDolares" required />
               </div>
               <div class="form-group">
-                <label for="clienteMovimientoDolares">Cliente</label>
-                <select id="clienteMovimientoDolares" required>
-                  <option value="">Seleccione Cliente</option>
+                <label for="tipoEntidadDolares">Tipo</label>
+                <select id="tipoEntidadDolares" required>
+                  <option value="">Seleccione Tipo</option>
+                  <option value="Cliente">Cliente</option>
+                  <option value="Operador">Operador</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="entidadMovimientoDolares">Entidad</label>
+                <select id="entidadMovimientoDolares" required>
+                  <option value="">Seleccione</option>
                 </select>
               </div>
               <div class="form-group">
@@ -1125,20 +1234,35 @@
                 <select id="tipoMovimientoDolares" required>
                   <option value="">Seleccione Tipo</option>
                   <option value="NOTA DE DEBITO">NOTA DE DEBITO</option>
-                  <option value="ARREGLO CREDITO">ARREGLO CREDITO</option>
+                  <option value="NOTA DE CREDITO">NOTA DE CREDITO</option>
                 </select>
               </div>
               <div class="form-group">
                 <label for="montoDebitoDolares">Monto Débito</label>
-                <input type="number" id="montoDebitoDolares" placeholder="Monto Débito" step="any" />
+                <input
+                  type="number"
+                  id="montoDebitoDolares"
+                  placeholder="Monto Débito"
+                  step="any"
+                />
               </div>
               <div class="form-group">
                 <label for="montoCreditoDolares">Monto Crédito</label>
-                <input type="number" id="montoCreditoDolares" placeholder="Monto Crédito" step="any" />
+                <input
+                  type="number"
+                  id="montoCreditoDolares"
+                  placeholder="Monto Crédito"
+                  step="any"
+                />
               </div>
               <div class="form-group">
                 <label for="conceptoMovimientoDolares">Concepto</label>
-                <input type="text" id="conceptoMovimientoDolares" placeholder="Concepto" required />
+                <input
+                  type="text"
+                  id="conceptoMovimientoDolares"
+                  placeholder="Concepto"
+                  required
+                />
               </div>
               <div class="form-group form-buttons">
                 <button type="submit" class="btn-primary">
@@ -1146,7 +1270,7 @@
                 </button>
               </div>
             </form>
-            
+
             <table>
               <thead>
                 <tr>
@@ -1164,21 +1288,30 @@
               <tbody id="tablaCuentaCorrienteDolares"></tbody>
               <tfoot>
                 <tr>
-                  <td colspan="5" class="text-right"><strong>SALDO TOTAL</strong></td>
+                  <td colspan="5" class="text-right">
+                    <strong>SALDO TOTAL</strong>
+                  </td>
                   <td id="saldoTotalDolares">0,00</td>
                   <td>USD</td>
                   <td colspan="2"></td>
                 </tr>
               </tfoot>
             </table>
-            
+
             <!-- Controles de paginación -->
             <div class="pagination">
-              <button id="btnAnteriorCCDolares" onclick="paginaAnterior('cuentaCorrienteDolares')" disabled>
+              <button
+                id="btnAnteriorCCDolares"
+                onclick="paginaAnterior('cuentaCorrienteDolares')"
+                disabled
+              >
                 <i class="fas fa-chevron-left"></i> Anterior
               </button>
               <span id="paginaActualCCDolares">Página 1</span>
-              <button id="btnSiguienteCCDolares" onclick="paginaSiguiente('cuentaCorrienteDolares')">
+              <button
+                id="btnSiguienteCCDolares"
+                onclick="paginaSiguiente('cuentaCorrienteDolares')"
+              >
                 Siguiente <i class="fas fa-chevron-right"></i>
               </button>
             </div>
